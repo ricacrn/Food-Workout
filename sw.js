@@ -32,11 +32,18 @@ self.addEventListener('install', event => {
 });
 
 self.addEventListener('activate', event => {
-  event.waitUntil(
-    caches.keys()
-      .then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))) // efface aussi le cache de l'ancienne app
-      .then(() => self.clients.claim())
-  );
+  event.waitUntil((async () => {
+    const keys = await caches.keys();
+    // L'ancienne app (Sec & Tracé) servait tout depuis son cache : on le supprime
+    // et on recharge les fenêtres ouvertes pour afficher tout de suite la nouvelle version.
+    const fromOldApp = keys.some(k => k.startsWith('sec-trace'));
+    await Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)));
+    await self.clients.claim();
+    if (fromOldApp) {
+      const wins = await self.clients.matchAll({ type: 'window' });
+      wins.forEach(w => w.navigate(w.url).catch(() => {}));
+    }
+  })());
 });
 
 self.addEventListener('fetch', event => {
