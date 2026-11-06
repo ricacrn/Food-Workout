@@ -122,7 +122,7 @@ export function Settings({ db, actions }) {
 
     <section class="stack">
       <h2>Reconnaissance par l’IA</h2>
-      <p class="muted small">Pour reconnaître les plats en photo, l’app utilise Claude avec ta propre clé API (console.anthropic.com › API Keys). La clé reste sur ce téléphone. Fixe une limite de dépense sur la console par sécurité.</p>
+      <p class="muted small">Pour reconnaître les plats en photo, l’app utilise Claude avec ta propre clé API (platform.claude.com › Settings › API keys, en choisissant un espace de travail). La clé reste sur ce téléphone. Fixe une limite de dépense sur la console par sécurité.</p>
       <label class="field">
         <span class="field-label">Clé API</span>
         <span class="field-box">

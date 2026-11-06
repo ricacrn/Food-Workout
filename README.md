@@ -51,7 +51,7 @@ Webapp (PWA) qui mêle nourriture et sport : tu notes ce que tu manges, et ton p
 
 La photo utilise Claude, avec ta propre clé API :
 
-1. Crée une clé sur [console.anthropic.com](https://console.anthropic.com), dans *API Keys*, et ajoute un peu de crédit.
+1. Crée un compte sur [platform.claude.com](https://platform.claude.com), ajoute un peu de crédit dans *Billing*, puis crée une clé dans [API keys](https://platform.claude.com/settings/keys) en la liant à un espace de travail (*Workspace*). La clé commence par `sk-ant-` et n'est affichée qu'une fois.
 2. Fixe une **limite de dépense mensuelle** dans la console, par sécurité.
 3. Dans l'app, va dans Réglages, puis colle la clé dans **Reconnaissance par l'IA**.
 

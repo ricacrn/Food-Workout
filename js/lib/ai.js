@@ -68,6 +68,8 @@ async function call(settings, content) {
     let msg = '';
     try { msg = (await res.json()).error?.message || ''; } catch (e) { /* rien */ }
     if (res.status === 401) throw new Error('Clé API refusée. Vérifie-la dans Réglages.');
+    if (/credit balance/i.test(msg)) throw new Error('Plus de crédit sur ton compte Claude. Ajoute du crédit sur platform.claude.com › Billing.');
+    if (/workspace/i.test(msg)) throw new Error('Ta clé n’est liée à aucun espace de travail. Crée une nouvelle clé en choisissant un espace de travail (Workspace).');
     if (res.status === 429) throw new Error('Trop de demandes d’un coup. Réessaie dans une minute.');
     if (res.status === 529 || res.status >= 500) throw new Error('Le service est surchargé. Réessaie dans un instant.');
     throw new Error(msg || `Erreur ${res.status}`);
