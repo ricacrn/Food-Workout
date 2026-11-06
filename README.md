@@ -1,1 +1,107 @@
-# Food-Workout
+# Plate & Pace
+
+En ligne : **https://ricacrn.github.io/Food-Workout/** · L’ancienne app Sec & Tracé reste disponible dans la branche `sauvegarde-sec-trace`.
+
+Webapp (PWA) qui mêle nourriture et sport : tu notes ce que tu manges, et ton programme d'entraînement s'ajuste à ton bilan des trois derniers jours.
+
+- **3 façons de noter un repas** : photo (reconnaissance par l'IA), code-barres (Open Food Facts) ou texte libre (« 150 g de riz, 2 œufs »). Les grammes s'ajustent à l'étape de vérification.
+- **Objectif** : perte de poids, maintien ou prise de masse. La cible calorique est calculée à partir de ton profil (formule de Mifflin-St Jeor).
+- **Programme adaptatif** : chaque 250 kcal d'écart cumulé sur 3 jours change la prochaine séance de 5 %, jusqu'à ±20 %.
+  - Si tu as trop mangé, la séance ajoute des séries et du cardio, et raccourcit les repos.
+  - Si tu as trop peu mangé, elle s'allège et te propose une collation.
+- **Lecteur de séance** : échauffement, séries, minuteur de repos avec bip, charges retenues d'une séance à l'autre.
+- **Activités** : tennis, Body Pump, course… Les calories sont estimées, ou tu saisis la valeur affichée par ta montre.
+- **Sans serveur** : tout reste sur ton téléphone. Une sauvegarde peut être exportée et importée depuis Réglages.
+
+---
+
+## 1. Mettre l'app en ligne sur GitHub Pages (5 minutes, sans ligne de commande)
+
+1. Sur [github.com](https://github.com), clique sur **New repository**.
+   - Nom : `plate-pace` (ou ce que tu veux).
+   - Visibilité : **Public**. GitHub Pages est gratuit pour les dépôts publics. Tes données ne sont pas dans le dépôt : elles restent sur ton téléphone.
+   - Clique sur **Create repository**.
+2. Sur la page du dépôt vide, clique sur **uploading an existing file**.
+3. Dézippe l'archive, puis glisse **tout le contenu du dossier `plate-pace`** dans la zone d'envoi.
+   - Glisse le contenu, pas le dossier lui-même : `index.html` doit être à la racine du dépôt.
+   - Avec le Finder, affiche les fichiers cachés (⌘ ⇧ .) pour inclure `.nojekyll`.
+4. Clique sur **Commit changes**.
+5. Va dans **Settings › Pages**.
+   - Source : *Deploy from a branch*.
+   - Branche : `main`, dossier `/ (root)`.
+   - Clique sur **Save**.
+6. Au bout d'une à deux minutes, l'app est en ligne à l'adresse `https://TON-PSEUDO.github.io/NOM-DU-DEPOT/`.
+
+## 2. L'installer sur l'iPhone
+
+1. Ouvre l'adresse dans **Safari**.
+2. Touche **Partager**, puis **Sur l'écran d'accueil**, puis **Ajouter**.
+3. Lance l'app depuis son icône. Elle s'ouvre en plein écran, comme une app native.
+
+> **Important** : utilise l'app depuis l'icône de l'écran d'accueil. Safari peut effacer les données d'un site ouvert dans le navigateur si tu ne le visites pas pendant une semaine d'utilisation de Safari. Une app installée sur l'écran d'accueil n'est pas concernée. Pense quand même à **Exporter** une sauvegarde de temps en temps (Réglages › Données).
+
+## 3. Activer la reconnaissance des photos (facultatif)
+
+La photo utilise Claude, avec ta propre clé API :
+
+1. Crée une clé sur [console.anthropic.com](https://console.anthropic.com), dans *API Keys*, et ajoute un peu de crédit.
+2. Fixe une **limite de dépense mensuelle** dans la console, par sécurité.
+3. Dans l'app, va dans Réglages, puis colle la clé dans **Reconnaissance par l'IA**.
+
+Compte environ 1 centime par photo avec Claude Sonnet 5.5, moins avec Haiku 5.5. La clé est stockée uniquement sur le téléphone et n'est jamais incluse dans les sauvegardes exportées. Sans clé, la photo reste utilisable : tu décris simplement l'assiette en texte.
+
+Le code-barres (Open Food Facts) et la saisie texte (table interne) sont gratuits et ne demandent aucune clé.
+
+## 4. Publier une mise à jour
+
+1. Modifie ou remplace les fichiers dans le dépôt GitHub (bouton **Add file › Upload files**).
+2. Dans `sw.js`, augmente `VERSION`, par exemple `v1.0.1`. Ainsi, les téléphones récupèrent la nouvelle version au lieu de garder l'ancienne en cache.
+3. Sur l'iPhone, ferme l'app et rouvre-la. Recommence une fois si besoin.
+
+## Structure
+
+```
+index.html              page d'entrée
+manifest.webmanifest    nom, icônes, mode plein écran
+sw.js                   cache hors ligne
+css/styles.css          design
+js/app.js               état de l'app et navigation
+js/ui.js                composants communs (anneau, stepper…)
+js/views/               écrans : today, add (capture + vérification), train (séance), settings
+js/lib/nutrition.js     cible calorique, macros, objectifs
+js/lib/program.js       séances, règle d'adaptation, calories (MET)
+js/lib/foods.js         table nutritionnelle + lecture du texte
+js/lib/scanner.js       caméra + code-barres + Open Food Facts
+js/lib/ai.js            reconnaissance photo / texte par Claude
+js/lib/store.js         sauvegarde locale, export / import
+vendor/                 Preact + htm, lecteur de code-barres ZXing (WebAssembly)
+```
+
+Aucune étape de compilation : les fichiers sont servis tels quels.
+
+### Réglages faciles à modifier
+
+- **Séances et exercices** : `SESSIONS` dans `js/lib/program.js`.
+- **Règle d'adaptation** : `STEP_KCAL` (250), `STEP_PCT` (5) et `MAX_STEPS` (4) dans `js/lib/program.js`.
+- **Écart calorique par objectif** : `GOALS` dans `js/lib/nutrition.js` (−400 / 0 / +300 kcal).
+- **Aliments reconnus en texte** : tableau `RAW` dans `js/lib/foods.js`, avec une ligne par aliment.
+
+## Pour la suite
+
+- **Apple Watch** : une webapp ne peut pas lire l'app Santé directement. Une piste sans app native consiste à créer un **Raccourci iOS** qui lit les calories actives dans Santé, puis ouvre l'app avec ces valeurs dans l'adresse.
+- **Synchronisation entre appareils** (par exemple via ton Raspberry Pi).
+- Historique du poids et graphique d'évolution.
+
+## Tester en local
+
+```
+python3 -m http.server 8000
+```
+
+Ouvre ensuite <http://localhost:8000>. La caméra ne fonctionne qu'en `localhost` ou en HTTPS. GitHub Pages est en HTTPS.
+
+## Crédits
+
+- [Preact](https://preactjs.com) et [htm](https://github.com/developit/htm) (MIT)
+- [barcode-detector](https://github.com/Sec-ant/barcode-detector) et [zxing-wasm](https://github.com/Sec-ant/zxing-wasm) (MIT, Apache-2.0)
+- Données produits : [Open Food Facts](https://world.openfoodfacts.org) (ODbL)
