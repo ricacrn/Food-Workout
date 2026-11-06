@@ -9,7 +9,7 @@ import { uid } from '../lib/store.js';
 import { fmt, adjShort, Icon, Seg, Stepper, Kicker, BarcodeGlyph } from '../ui.js';
 
 const dec = v => String(v ?? 0).replace('.', ',');
-const MODES = [{ id: 'photo', label: 'Photo' }, { id: 'barcode', label: 'Code-barres' }, { id: 'text', label: 'Texte' }];
+const MODES = [{ id: 'text', label: 'Texte' }, { id: 'photo', label: 'Photo' }, { id: 'barcode', label: 'Code-barres' }];
 
 function camError(e) {
   if (e && (e.name === 'NotAllowedError' || e.name === 'SecurityError')) return 'Accès à la caméra refusé. Autorise-le dans Réglages › Safari › Caméra, ou saisis le code à la main.';
@@ -29,10 +29,10 @@ function productItem(p) {
 
 export function Capture({ db, ui, actions }) {
   const d = ui.draft;
-  const [mode, setMode] = useState(d.mode || 'photo');
+  const [mode, setMode] = useState(d.mode || 'text');
   const [busy, setBusy] = useState('');
   const [error, setError] = useState('');
-  const [photo, setPhoto] = useState(null);
+  const [photo, setPhoto] = useState(d.photo || null);
   const [text, setText] = useState(d.text || '');
   const [code, setCode] = useState('');
   const [scanKey, setScanKey] = useState(0);
@@ -41,6 +41,12 @@ export function Capture({ db, ui, actions }) {
   const galInput = useRef(null);
   const hasKey = !!db.settings.apiKey;
   const meal = MEALS.find(m => m.id === d.meal) || MEALS[3];
+  const alive = useRef(true);
+  const modeRef = useRef(mode);
+  modeRef.current = mode;
+  useEffect(() => () => { alive.current = false; }, []);
+  // Chaque passage à la vérification remet à zéro ce qui vient d'une autre source.
+  const review = patch => { if (alive.current) actions.toReview({ photo: null, product: null, text: '', ...patch }); };
 
   const switchMode = m => { setError(''); setBusy(''); setMode(m); };
 
@@ -49,12 +55,13 @@ export function Capture({ db, ui, actions }) {
     setBusy('Recherche du produit…');
     try {
       const p = await lookupBarcode(c);
+      if (!alive.current || modeRef.current !== 'barcode') return;
       if (!p) {
         setBusy('');
         setError(`Produit introuvable (code ${c}). Essaie de l’écrire en mode Texte.`);
         return;
       }
-      actions.toReview({ source: 'barcode', items: [productItem(p)], product: p });
+      review({ source: 'barcode', items: [productItem(p)], product: p });
     } catch (e) {
       setBusy('');
       setError(e.message);
@@ -87,8 +94,9 @@ export function Capture({ db, ui, actions }) {
       setBusy('Identification des aliments…');
       const items = await analyzePhoto(db.settings, jpg);
       if (!items.length) throw new Error('Aucun aliment reconnu. Reprends la photo de plus près ou décris le repas.');
-      actions.toReview({ source: 'photo', items: items.map(i => ({ ...i, src: 'photo' })), photo: jpg });
+      review({ source: 'photo', items: items.map(i => ({ ...i, src: 'photo' })), photo: jpg });
     } catch (err) {
+      if (!alive.current) return;
       setBusy('');
       setError(err.message);
     }
@@ -106,7 +114,7 @@ export function Capture({ db, ui, actions }) {
         items = [...items.filter(i => !i.unknown), ...ai.map(a => ({ ...a, src: 'text' }))];
       } catch (err) { /* on garde l'estimation locale */ }
     }
-    actions.toReview({ source: photo ? 'photo' : 'text', items: items.map(i => ({ ...i, src: photo ? 'photo' : 'text' })), text, photo });
+    review({ source: photo ? 'photo' : 'text', items: items.map(i => ({ ...i, src: photo ? 'photo' : 'text' })), text, photo });
   }
 
   return html`<div class="capture">
@@ -141,7 +149,7 @@ export function Capture({ db, ui, actions }) {
         <div class="kicker on-dark">Récents</div>
         <div class="chips">
           ${db.recents.slice(0, 10).map(r => html`<button key=${r.name} class="chip-dark"
-            onClick=${() => actions.toReview({ source: r.src || 'text', items: [{ ...r }] })}>${r.name} · ${r.g} ${r.unit}</button>`)}
+            onClick=${() => review({ source: 'text', items: [{ ...r }] })}>${r.name} · ${r.g} ${r.unit}</button>`)}
         </div>
       </div>`}
     </div>`}

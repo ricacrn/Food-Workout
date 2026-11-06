@@ -1,4 +1,4 @@
-import { html } from '../vendor/preact-htm.js';
+import { html, useState, useEffect } from '../vendor/preact-htm.js';
 
 export const fmt = n => String(Math.round(Math.abs(Number(n) || 0))).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
 export const sg = n => (Math.round(n) > 0 ? '+' : Math.round(n) < 0 ? '−' : '') + fmt(n);
@@ -83,4 +83,51 @@ export function Sheet({ onClose, children, title }) {
 
 export function Kicker({ children, style }) {
   return html`<div class="kicker" style=${style}>${children}</div>`;
+}
+
+const kgTxt = v => String(Math.max(0, Math.round(v * 4) / 4)).replace('.', ',');
+
+/** Réglage de charge : − / + avec un pas au choix, ou saisie directe. */
+export function LoadControl({ value, step, steps, onChange, onStep, dark }) {
+  const [txt, setTxt] = useState(kgTxt(value));
+  useEffect(() => { setTxt(kgTxt(value)); }, [value]);
+  const commit = () => {
+    const v = parseFloat(String(txt).replace(',', '.'));
+    if (!isNaN(v) && v >= 0 && v <= 500) onChange(Math.round(v * 4) / 4);
+    else setTxt(kgTxt(value));
+  };
+  return html`<div class=${`loadc ${dark ? 'dark' : ''}`}>
+    <div class="loadc-row">
+      <button type="button" aria-label=${`Moins ${kgTxt(step)} kg`} onClick=${() => onChange(Math.max(0, value - step))}>−</button>
+      <label class="loadc-val">
+        <input type="text" inputmode="decimal" aria-label="Charge en kg" value=${txt}
+          onFocus=${e => e.target.select()} onInput=${e => setTxt(e.target.value.replace(/[^\d.,]/g, ''))}
+          onBlur=${commit} onKeyDown=${e => { if (e.key === 'Enter') e.target.blur(); }} />
+        <span>kg</span>
+      </label>
+      <button type="button" aria-label=${`Plus ${kgTxt(step)} kg`} onClick=${() => onChange(value + step)}>+</button>
+    </div>
+    <div class="loadc-steps" role="radiogroup" aria-label="Pas de réglage">
+      <span>Pas</span>
+      ${steps.map(s => html`<button key=${s} type="button" role="radio" aria-checked=${s === step}
+        class=${s === step ? 'on' : ''} onClick=${() => onStep(s)}>${kgTxt(s)}</button>`)}
+    </div>
+  </div>`;
+}
+
+/** Mini-courbe d'évolution. */
+export function Sparkline({ values, w = 88, h = 30, color = 'currentColor' }) {
+  if (!values || values.length < 2) return null;
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const span = max - min || 1;
+  const pts = values.map((v, i) => [
+    3 + (i * (w - 6)) / (values.length - 1),
+    h - 3 - ((v - min) / span) * (h - 6),
+  ]);
+  const last = pts[pts.length - 1];
+  return html`<svg width=${w} height=${h} viewBox=${`0 0 ${w} ${h}`} aria-hidden="true" class="spark">
+    <polyline points=${pts.map(p => p.join(',')).join(' ')} fill="none" stroke=${color} stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+    <circle cx=${last[0]} cy=${last[1]} r="3" fill=${color} />
+  </svg>`;
 }

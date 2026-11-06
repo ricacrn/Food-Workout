@@ -1,7 +1,7 @@
 import { html, render, useState, useEffect, useRef } from '../vendor/preact-htm.js';
 import * as store from './lib/store.js';
 import { mealForNow } from './lib/nutrition.js';
-import { sequence, metKcal } from './lib/program.js';
+import { sequence, metKcal, exerciseEntry, recompute, roundKg } from './lib/program.js';
 import { todayKey, hhmm } from './lib/dates.js';
 import { unlockAudio, keepAwake } from './lib/sound.js';
 import { Icon } from './ui.js';
@@ -23,8 +23,16 @@ function enterStep(w, now) {
 function advance(w, now) {
   const seq = sequence(w.plan);
   const cur = seq[w.step];
+  if (cur.kind === 'set') {
+    w.done = w.done || {};
+    w.done[cur.name] = (w.done[cur.name] || 0) + 1;
+  }
   if (cur.kind === 'timed' && cur.finisher) w.finSec += Math.max(0, (Math.min(now, w.phaseEnd || now) - w.phaseStart) / 1000);
-  if (w.step + 1 >= seq.length) return true;
+  if (w.step + 1 >= seq.length) {
+    w.phase = 'ended';
+    w.phaseEnd = null;
+    return true;
+  }
   w.step += 1;
   if (cur.kind === 'set') {
     w.phase = 'rest';
@@ -36,15 +44,26 @@ function advance(w, now) {
   return false;
 }
 
+// Remplace un exercice dans la séance en cours (mêmes séries, nouvelle charge).
+function swapInWorkout(d, slot, name) {
+  const w = d.workout;
+  if (!w) return;
+  const i = w.plan.ex.findIndex(e => e.slot === slot);
+  if (i < 0) return;
+  const old = w.plan.ex[i];
+  if (old.name === name) return;
+  // séries déjà faites sur l'ancien exercice : on les garde pour l'historique
+  if (w.done && w.done[old.name]) w.swappedOut = [...(w.swappedOut || []), old];
+  const slotObj = { n: slot, s: old.base, alts: old.alts.filter(a => a !== slot) };
+  w.plan.ex[i] = exerciseEntry(d, slotObj, name, w.plan.goal, old.d);
+}
+
 function App() {
   const [db, setDb] = useState(store.load);
-  const [ui, setUi] = useState(() => ({ screen: 'today', date: todayKey(), draft: null, sheet: null, done: null }));
+  const [ui, setUi] = useState(() => ({ screen: db.workout ? 'workout' : 'today', date: todayKey(), draft: null, sheet: null, done: null }));
   const [toast, setToast] = useState('');
   const toastT = useRef(null);
-
-  useEffect(() => {
-    if (db.workout) setUi(u => ({ ...u, screen: 'workout' }));
-  }, []);
+  const seenToday = useRef(todayKey());
 
   useEffect(() => { window.scrollTo(0, 0); }, [ui.screen, !!db.profile]);
 
@@ -65,8 +84,8 @@ function App() {
 
   const go = (screen, extra = {}) => setUi(u => ({ ...u, screen, sheet: null, ...extra }));
 
-  function finishWorkout() {
-    const w = db.workout;
+  function finishWorkout(wArg) {
+    const w = wArg || db.workout;
     if (!w) return;
     const now = Date.now();
     const seq = sequence(w.plan);
@@ -77,27 +96,43 @@ function App() {
     const finMin = finSec / 60;
     const kcal = metKcal(5, db.profile.weight, Math.max(0, min - finMin)) + metKcal(8, db.profile.weight, finMin);
     const name = w.plan.session.name;
+    const sid = uid();
     update(d => {
       const k = w.date;
       d.days[k] = d.days[k] || store.emptyDay();
-      d.days[k].activities.push({ id: uid(), type: 'session', label: name, min, kcal, time: hhmm(new Date(w.startedAt)) });
-      d.sessions.push({ id: uid(), date: k, name, min, kcal, pct: w.plan.pct });
+      d.days[k].activities.push({ id: uid(), sid, type: 'session', label: name, min, kcal, time: hhmm(new Date(w.startedAt)) });
+      d.sessions.push({ id: sid, date: k, name, min, kcal, pct: w.plan.pct });
       d.sessions = d.sessions.slice(-200);
       d.sessIdx += 1;
       d.workout = null;
+      // Historique et progression de chaque exercice réellement fait
+      const seen = new Set();
+      [...w.plan.ex, ...(w.swappedOut || [])].forEach(e => {
+        if (seen.has(e.name)) return;
+        seen.add(e.name);
+        const sets = (w.done && w.done[e.name]) || 0;
+        if (!sets) return;
+        const p = (d.progress[e.name] = d.progress[e.name] || {});
+        p.hist = p.hist || [];
+        p.hist.push({ date: k, sid, kg: e.kg, reps: e.reps, sec: e.sec, sets, rating: (w.ratings && w.ratings[e.name]) || 'bien' });
+        if (p.hist.length > 60) p.hist = p.hist.slice(-60);
+        recompute(p, e.name);
+      });
     });
     keepAwake(false);
-    go('done', { done: { name, kcal, min, preSum: w.preSum } });
+    go('done', { done: { sid, name, kcal, min, preSum: w.preSum } });
   }
 
   const actions = {
     update, notify, go,
     setDate: date => setUi(u => ({ ...u, date })),
     replaceDb: next => { store.save(next); setDb(next); go('today'); },
-    wipe: () => { store.wipe(); setDb(store.defaultDb()); go('today'); },
+    wipe: () => { store.wipe(); setDb(store.defaultDb()); go('today', { date: todayKey() }); },
 
-    // Ajout de repas
-    openAdd: (meal, mode = 'photo') => go('add', { draft: { meal: meal || mealForNow(), date: ui.date || todayKey(), mode } }),
+    // Ajout de repas (depuis Entraînement, c'est toujours pour aujourd'hui)
+    openAdd: (meal, mode = 'text') => go('add', {
+      draft: { meal: meal || mealForNow(), date: ui.screen === 'today' ? ui.date || todayKey() : todayKey(), mode },
+    }),
     closeAdd: () => go('today'),
     toReview: patch => setUi(u => ({ ...u, screen: 'review', draft: { ...u.draft, ...patch } })),
     backToCapture: mode => setUi(u => ({ ...u, screen: 'add', draft: { ...u.draft, mode } })),
@@ -112,7 +147,7 @@ function App() {
         const fresh = items.map(i => ({ name: i.name, g: i.g, unit: i.unit, k100: i.k100, p100: i.p100 || 0, c100: i.c100 || 0, f100: i.f100 || 0, src: i.src || source }));
         d.recents = [...fresh, ...d.recents.filter(r => !fresh.some(f => f.name === r.name))].slice(0, 24);
       });
-      go('today');
+      go('today', { date });
       notify('Repas ajouté');
     },
     removeEntry: (date, id) => update(d => { if (d.days[date]) d.days[date].entries = d.days[date].entries.filter(e => e.id !== id); }),
@@ -128,8 +163,14 @@ function App() {
       const a = d.days[date].activities.find(x => x.id === id);
       d.days[date].activities = d.days[date].activities.filter(x => x.id !== id);
       if (a && a.type === 'session') {
-        const i = d.sessions.findIndex(s => s.date === date && s.name === a.label);
+        const i = a.sid ? d.sessions.findIndex(s => s.id === a.sid) : d.sessions.findIndex(s => s.date === date && s.name === a.label);
         if (i >= 0) d.sessions.splice(i, 1);
+        // annule aussi la progression enregistrée pendant cette séance
+        if (a.sid) Object.entries(d.progress).forEach(([name, p]) => {
+          if (!p.hist || !p.hist.some(h => h.sid === a.sid)) return;
+          p.hist = p.hist.filter(h => h.sid !== a.sid);
+          recompute(p, name);
+        });
       }
     }),
 
@@ -139,7 +180,7 @@ function App() {
       keepAwake(true);
       const now = Date.now();
       update(d => {
-        d.workout = { plan, date: todayKey(), startedAt: now, step: 0, phase: 'work', phaseStart: now, phaseEnd: null, finSec: 0, preSum: B.sum };
+        d.workout = { v: 2, plan, date: todayKey(), startedAt: now, step: 0, phase: 'work', phaseStart: now, phaseEnd: null, finSec: 0, preSum: B.sum, done: {}, ratings: {} };
         enterStep(d.workout, now);
       });
       go('workout');
@@ -150,28 +191,67 @@ function App() {
       const next = structuredClone(prev);
       const nw = next.workout;
       const now = Date.now();
+      nw.autoAt = now;
       if (nw.phase === 'rest') enterStep(nw, now);
-      else if (advance(nw, now)) { nw.phaseEnd = null; nw.ended = true; }
+      else if (advance(nw, now)) nw.ended = true;
       store.save(next);
       return next;
     }),
     workoutPrimary: () => {
       const w = db.workout;
       if (!w) return;
-      if (w.phase === 'rest') { update(d => enterStep(d.workout, Date.now())); return; }
+      unlockAudio(); // réactive le son après une reprise de séance
       const now = Date.now();
-      if (advance(structuredClone(w), now)) { finishWorkout(); return; }
-      update(d => { advance(d.workout, now); });
+      const nw = structuredClone(w);
+      if (nw.phase === 'rest') {
+        enterStep(nw, now);
+      } else if (advance(nw, now)) {
+        finishWorkout(nw);
+        return;
+      }
+      update(d => { d.workout = nw; });
     },
+    rate: (name, rating) => update(d => {
+      if (!d.workout) return;
+      d.workout.ratings = d.workout.ratings || {};
+      d.workout.ratings[name] = rating;
+    }),
+    rateAfter: (sid, name, rating) => update(d => {
+      const p = d.progress[name];
+      const h = p && p.hist && p.hist.find(x => x.sid === sid);
+      if (!h) return;
+      h.rating = rating;
+      if (p.hist[p.hist.length - 1] === h) recompute(p, name);
+    }),
     setLoad: (name, kg) => {
-      const v = Math.max(0, Math.round(kg * 2) / 2);
+      const v = roundKg(kg);
       update(d => {
-        d.loads[name] = v;
-        const e = d.workout && d.workout.plan.ex.find(x => x.name === name);
-        if (e) e.kg = v;
+        d.progress[name] = { ...(d.progress[name] || {}), kg: v };
+        if (d.workout) d.workout.plan.ex.forEach(e => { if (e.name === name) e.kg = v; });
       });
     },
-    finishWorkout,
+    setTarget: (name, patch) => update(d => {
+      d.progress[name] = { ...(d.progress[name] || {}), ...patch };
+      if (d.workout) d.workout.plan.ex.forEach(e => { if (e.name === name) Object.assign(e, patch); });
+    }),
+    setStep: (name, step) => update(d => { d.progress[name] = { ...(d.progress[name] || {}), step }; }),
+    swap: (slot, name, mode) => {
+      update(d => {
+        if (mode === 'always') {
+          if (name === slot) delete d.swaps[slot];
+          else d.swaps[slot] = name;
+        }
+        swapInWorkout(d, slot, name);
+      });
+      notify(name === slot ? `Retour à ${slot}` : mode === 'always' ? `${name} remplace ${slot} dans ton programme` : `${name} pour cette séance`);
+    },
+    finishWorkout: () => {
+      const w = db.workout;
+      if (!w) return;
+      const left = sequence(w.plan).length - w.step - 1;
+      if (left > 0 && !confirm('Terminer la séance maintenant ? Elle sera enregistrée avec les séries déjà faites.')) return;
+      finishWorkout();
+    },
     quitWorkout: () => {
       if (!confirm('Quitter la séance sans l’enregistrer ?')) return;
       update(d => { d.workout = null; });
@@ -183,12 +263,17 @@ function App() {
   // Fin automatique quand le dernier minuteur (cardio final) se termine.
   useEffect(() => { if (db.workout && db.workout.ended) finishWorkout(); }, [db.workout && db.workout.ended]);
 
-  // Revenir sur aujourd'hui après minuit si l'app reste ouverte.
+  // Au retour dans l'app : écran allumé pendant la séance, et passage au nouveau jour après minuit.
   useEffect(() => {
     const onVis = () => {
       if (document.visibilityState !== 'visible') return;
       if (db.workout) keepAwake(true);
-      setUi(u => (u.screen === 'today' && u.date !== todayKey() && u.stickToday !== false ? { ...u, date: todayKey() } : u));
+      const tk = todayKey();
+      if (tk !== seenToday.current) {
+        const old = seenToday.current;
+        seenToday.current = tk;
+        setUi(u => (u.date === old ? { ...u, date: tk } : u));
+      }
     };
     document.addEventListener('visibilitychange', onVis);
     return () => document.removeEventListener('visibilitychange', onVis);

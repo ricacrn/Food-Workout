@@ -17,7 +17,7 @@ export function linkCard(db) {
   const tk = todayKey();
   const B = balance(db, tk);
   const sess = currentSession(db);
-  const plan = buildPlan(sess, db.profile.goal, B.steps, db.loads);
+  const plan = buildPlan(sess, db.profile.goal, B.steps, db);
   const when = relativeDay(nextTrainingDay(db, tk), tk);
   const kind = B.steps > 0 ? 'up' : B.steps < 0 ? 'down' : 'even';
   const snack = Math.max(200, Math.min(500, Math.round(Math.abs(B.sum) / 3 / 50) * 50));

@@ -9,7 +9,14 @@ Webapp (PWA) qui mêle nourriture et sport : tu notes ce que tu manges, et ton p
 - **Programme adaptatif** : chaque 250 kcal d'écart cumulé sur 3 jours change la prochaine séance de 5 %, jusqu'à ±20 %.
   - Si tu as trop mangé, la séance ajoute des séries et du cardio, et raccourcit les repos.
   - Si tu as trop peu mangé, elle s'allège et te propose une collation.
-- **Lecteur de séance** : échauffement, séries, minuteur de repos avec bip, charges retenues d'une séance à l'autre.
+- **Lecteur de séance** : échauffement, séries, minuteur de repos avec bip.
+- **Progression des charges** : à la fin de chaque exercice, tu donnes ton ressenti (Facile, Bien ou Difficile) et l'app ajuste la charge suivante.
+  - Facile : +1 cran dès la prochaine fois.
+  - Bien deux fois de suite : +1 cran.
+  - Difficile deux fois de suite : −1 cran.
+  - Un cran vaut 2,5 kg sur les exercices lourds et 1 kg sur les autres. L'évolution de chaque exercice est visible dans Entraînement.
+- **Réglage de la charge** : les boutons − / + avancent selon le pas choisi (1 · 2,5 · 5 · 10 kg sur les exercices lourds, 0,5 · 1 · 2,5 kg sur les autres). Tu peux aussi taper la valeur directement.
+- **Exercices de remplacement** : chaque exercice propose 3 ou 4 alternatives (machine, haltères, sans matériel). Tu les choisis pour la séance du jour seulement, ou pour toujours.
 - **Activités** : tennis, Body Pump, course… Les calories sont estimées, ou tu saisis la valeur affichée par ta montre.
 - **Sans serveur** : tout reste sur ton téléphone. Une sauvegarde peut être exportée et importée depuis Réglages.
 
@@ -81,7 +88,7 @@ Aucune étape de compilation : les fichiers sont servis tels quels.
 
 ### Réglages faciles à modifier
 
-- **Séances et exercices** : `SESSIONS` dans `js/lib/program.js`.
+- **Séances, exercices et remplacements** : `SESSIONS` et `EXERCISES` dans `js/lib/program.js` (charge de départ, exercice lourd ou non, matériel).
 - **Règle d'adaptation** : `STEP_KCAL` (250), `STEP_PCT` (5) et `MAX_STEPS` (4) dans `js/lib/program.js`.
 - **Écart calorique par objectif** : `GOALS` dans `js/lib/nutrition.js` (−400 / 0 / +300 kcal).
 - **Aliments reconnus en texte** : tableau `RAW` dans `js/lib/foods.js`, avec une ligne par aliment.

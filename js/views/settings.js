@@ -33,7 +33,8 @@ function Choice({ options, value, onChange }) {
 }
 
 function DaysPicker({ value, onChange }) {
-  const toggle = i => onChange(value.includes(i) ? value.filter(x => x !== i) : [...value, i].sort());
+  // au moins un jour d'entraînement
+  const toggle = i => onChange(value.includes(i) ? (value.length > 1 ? value.filter(x => x !== i) : value) : [...value, i].sort());
   return html`<div class="days" role="group" aria-label="Jours d’entraînement">
     ${DAY_LETTER.map((l, i) => html`<button key=${i} type="button" aria-pressed=${value.includes(i)} aria-label=${DAY_NAMES[i]}
       class=${value.includes(i) ? 'on' : ''} onClick=${() => toggle(i)}>${l}</button>`)}
