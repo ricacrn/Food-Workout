@@ -1,4 +1,4 @@
-import { GOALS, targetFor, dayTotals } from './nutrition.js';
+import { GOALS, targetFor, dayTotals, bmr } from './nutrition.js';
 import { addDays, weekday, todayKey } from './dates.js';
 import { getDay } from './store.js';
 
@@ -146,16 +146,19 @@ export const RATINGS = [
 /**
  * Progression : à partir de ce que tu viens de faire et de ton ressenti.
  * - Facile → on monte d'un cran dès la prochaine fois.
- * - Bien → on monte d'un cran si la fois d'avant était déjà « Bien » ou « Facile ».
- * - Difficile → on garde ; deux fois « Difficile » de suite → on redescend d'un cran.
+ * - Bien → on monte d'un cran si la fois d'avant, à la même charge, était déjà « Bien » ou « Facile ».
+ * - Difficile → on garde ; deux fois « Difficile » à la même charge → on redescend d'un cran.
  */
-export function nextTarget(name, entry, prevRating) {
+const sameWork = (a, b) => !!a && !!b && (a.kg || 0) === (b.kg || 0) && (a.reps || 0) === (b.reps || 0) && (a.sec || 0) === (b.sec || 0);
+
+export function nextTarget(name, entry, prev) {
   const e = exInfo(name);
   const r = entry.rating || 'bien';
+  const same = sameWork(entry, prev);
   let dir = 0;
   if (r === 'facile') dir = 1;
-  else if (r === 'bien' && (prevRating === 'bien' || prevRating === 'facile')) dir = 1;
-  else if (r === 'dur' && prevRating === 'dur') dir = -1;
+  else if (r === 'bien' && same && (prev.rating === 'bien' || prev.rating === 'facile')) dir = 1;
+  else if (r === 'dur' && same && prev.rating === 'dur') dir = -1;
   if (e.kind === 'kg') return { dir, kg: roundKg(entry.kg + dir * progressStep(name)) };
   if (e.kind === 'bw') return { dir, reps: Math.max(3, entry.reps + dir * (r === 'facile' ? 2 : 1)) };
   return { dir, sec: Math.max(15, entry.sec + dir * (r === 'facile' ? 10 : 5)) };
@@ -165,25 +168,26 @@ export function nextTarget(name, entry, prevRating) {
 export function recompute(p, name) {
   const h = p.hist || [];
   if (!h.length) return;
-  const last = h[h.length - 1];
-  const prev = h.length > 1 ? h[h.length - 2].rating : null;
-  const n = nextTarget(name, last, prev);
+  const n = nextTarget(name, h[h.length - 1], h.length > 1 ? h[h.length - 2] : null);
   delete n.dir;
   Object.assign(p, n);
 }
 
 /**
  * Bilan des 3 derniers jours (avant-hier, hier, aujourd'hui) par rapport à la cible.
- * - Un jour sans aucun repas noté est ignoré (sinon il compterait comme un gros manque).
+ * - Un jour sans repas noté, ou à peine rempli (moins de la moitié du métabolisme de base), est ignoré :
+ *   sinon un oubli compterait comme un gros manque.
  * - Aujourd'hui ne compte qu'en excédent tant que la journée n'est pas finie.
  * extra = calories d'un repas pas encore ajouté (pour prévisualiser son effet).
  */
 export function balance(db, ref = todayKey(), extra = 0) {
   const target = targetFor(db.profile);
+  const minEaten = bmr(db.profile) * 0.5;
   const days = [-2, -1].map(off => {
     const k = addDays(ref, off);
     const t = dayTotals(getDay(db, k));
-    return { k, counted: t.hasFood, v: t.hasFood ? t.eaten - t.burned - target : 0 };
+    const counted = t.hasFood && t.eaten >= minEaten;
+    return { k, counted, partial: t.hasFood && !counted, v: counted ? t.eaten - t.burned - target : 0 };
   });
   const t = dayTotals(getDay(db, ref));
   const raw = t.eaten + extra - t.burned - target;
@@ -284,3 +288,7 @@ export function sequence(plan) {
 export function blocks(plan) {
   return ['Échauffement', ...plan.ex.map(e => e.name), ...(plan.fin ? ['Cardio final'] : [])];
 }
+
+// Séance laissée en plan : plus de 30 min sans aucune action de ta part.
+export const STALE_MS = 30 * 60000;
+export const isStale = (w, now) => !!w && now - (w.lastAt || w.startedAt) > STALE_MS;

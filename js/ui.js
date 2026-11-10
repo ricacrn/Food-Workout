@@ -21,6 +21,11 @@ const PATHS = {
   image: 'M4 5h16v14H4zM4 16l5-5 4 4 3-3 4 4M15.5 9.5h.01',
   check: 'M5 12l5 5 9-10',
   bolt: 'M13 3L5 14h6l-1 7 8-11h-6z',
+  cart: 'M3 4h2.5l2.2 10.5h10.2L20 7H7M9.5 19.5h.01M17 19.5h.01',
+  refresh: 'M20 12a8 8 0 1 1-2.6-5.9M20 4v4.5h-4.5',
+  share: 'M12 15V4M8 8l4-4 4 4M5 12v7h14v-7',
+  star: 'M12 4l2.4 5 5.6.8-4 3.9.9 5.5-4.9-2.6-4.9 2.6.9-5.5-4-3.9 5.6-.8z',
+  clock: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 7.5V12l3 2',
 };
 
 export function Icon({ name, size = 20, stroke = 2, label }) {
@@ -130,4 +135,17 @@ export function Sparkline({ values, w = 88, h = 30, color = 'currentColor' }) {
     <polyline points=${pts.map(p => p.join(',')).join(' ')} fill="none" stroke=${color} stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
     <circle cx=${last[0]} cy=${last[1]} r="3" fill=${color} />
   </svg>`;
+}
+
+/** Fenêtre de confirmation dans le style de l'app (remplace les pop-ups du système). */
+export function ConfirmSheet({ title, text, ok = 'Confirmer', cancel = 'Annuler', danger, extra, onAnswer }) {
+  return html`<${Sheet} onClose=${() => onAnswer(false)} title=${title}>
+    <div class="sheet-title">${title}</div>
+    ${text && html`<div class="muted">${text}</div>`}
+    <div class="stack-s">
+      <button class=${`btn wide ${danger ? 'btn-danger' : 'btn-dark'}`} onClick=${() => onAnswer(true)}>${ok}</button>
+      ${extra && html`<button class="btn btn-ghost wide" onClick=${() => onAnswer(extra.id)}>${extra.label}</button>`}
+      <button class="btn btn-ghost wide" onClick=${() => onAnswer(false)}>${cancel}</button>
+    </div>
+  </${Sheet}>`;
 }

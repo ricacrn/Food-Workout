@@ -2,7 +2,7 @@ import { html, useState, useEffect, useRef } from '../../vendor/preact-htm.js';
 import { GOALS, dayTotals } from '../lib/nutrition.js';
 import {
   WARM, sequence, blocks, specOf, metKcal, nextTrainingDay, exInfo, currentTarget,
-  stepChoices, defaultStep, RATINGS, fmtKg,
+  stepChoices, defaultStep, RATINGS, fmtKg, isStale,
 } from '../lib/program.js';
 import { todayKey, addDays, mondayOf, weekday, dayNum, DAY_LETTER, DAY_SHORT, relativeDay } from '../lib/dates.js';
 import { getDay } from '../lib/store.js';
@@ -35,7 +35,8 @@ export function ExerciseSheet({ db, name, slot, alts, scope, actions, onClose })
   const hist = (p.hist || []).slice(-12);
   const values = hist.map(h => valueOf(info.kind, h));
   const last = hist[hist.length - 1];
-  const [mode, setMode] = useState(scope === 'workout' ? 'once' : 'always');
+  // Par défaut le remplacement est retenu : pratique quand la machine n'existe pas dans ta salle.
+  const [mode, setMode] = useState('always');
   const others = (alts || []).filter(a => a !== name);
 
   return html`<${Sheet} onClose=${onClose} title=${name}>
@@ -70,7 +71,7 @@ export function ExerciseSheet({ db, name, slot, alts, scope, actions, onClose })
 
     ${others.length > 0 && html`<div class="stack-s">
       <div class="field-label">Remplacer par</div>
-      ${scope === 'workout' && html`<${Seg} small options=${[{ id: 'once', label: 'Cette séance' }, { id: 'always', label: 'Toujours' }]} value=${mode} onChange=${setMode} />`}
+      ${scope === 'workout' && html`<${Seg} small options=${[{ id: 'always', label: 'Pour toutes les séances' }, { id: 'once', label: 'Juste aujourd’hui' }]} value=${mode} onChange=${setMode} />`}
       <div class="alt-list">
         ${others.map(a => html`<button key=${a} class="alt" onClick=${() => { actions.swap(slot, a, scope === 'workout' ? mode : 'always'); onClose(); }}>
           <div class="alt-txt">
@@ -80,7 +81,7 @@ export function ExerciseSheet({ db, name, slot, alts, scope, actions, onClose })
           <${Icon} name="right" size=${18} />
         </button>`)}
       </div>
-      ${scope !== 'workout' && html`<div class="muted tiny">Ton choix est retenu pour les prochaines séances. Tu peux revenir à l’exercice d’origine ici.</div>`}
+      <div class="muted tiny">${scope === 'workout' && mode === 'once' ? 'Remplacement valable pour cette séance seulement.' : 'Ton choix est retenu pour les prochaines séances. Tu peux revenir à l’exercice d’origine ici.'}</div>
     </div>`}
   </${Sheet}>`;
 }
@@ -91,7 +92,7 @@ function row(name, spec, tag, dir, muted, ex) {
 
 export function planRows(plan) {
   const rows = [row('Échauffement', `${WARM} min · mobilité et cardio léger`)];
-  plan.ex.forEach(e => rows.push(row(e.name, specOf(e), e.d > 0 ? '+1 série' : e.d < 0 ? '−1 série' : '', e.d, false, e)));
+  plan.ex.forEach(e => rows.push(row(e.name, specOf(e) + (e.name !== e.slot ? ` · remplace ${e.slot}` : ''), e.d > 0 ? '+1 série' : e.d < 0 ? '−1 série' : '', e.d, false, e)));
   if (plan.fin || plan.finBase) {
     const tag = plan.fin > plan.finBase ? (plan.finBase ? `+${plan.fin - plan.finBase} min` : 'ajouté') : plan.fin < plan.finBase ? 'retiré' : '';
     rows.push(row('Cardio final', plan.fin ? `${plan.fin} min · vélo ou rameur` : 'retiré pour cette séance', tag, Math.sign(plan.fin - plan.finBase), !plan.fin));
@@ -161,7 +162,7 @@ export function Train({ db, actions }) {
           const v = d.v;
           const h = !d.counted || v === 0 ? 0 : Math.max(3, Math.round(Math.abs(v) * scale));
           const up = v >= 0;
-          const val = !d.counted ? 'non noté' : d.live && d.raw <= 0 ? 'en cours' : sg(v) || '0';
+          const val = !d.counted ? (d.partial ? 'incomplet' : 'non noté') : d.live && d.raw <= 0 ? 'en cours' : sg(v) || '0';
           return html`<div key=${d.k} class="bar-col">
             <div class=${`bar-val ${(!d.counted || (d.live && d.raw <= 0)) ? 'dim' : ''}`}>${val}</div>
             <div class="bar-track">
@@ -174,7 +175,7 @@ export function Train({ db, actions }) {
       </div>
       <div class="balance-sep"></div>
       <div class=${`verdict ${kind}`}>${kind === 'even' ? 'Séance normale' : `Séance ${B.pct > 0 ? 'renforcée' : 'allégée'} ${pctTxt(B.pct)}`}</div>
-      <div class="on-dark-dim small">Chaque 250 kcal d’écart ajuste ta séance de 5 %, jusqu’à ±20 %. Aujourd’hui compte dès que tu dépasses ta cible ; un jour sans repas noté est ignoré.</div>
+      <div class="on-dark-dim small">Chaque 250 kcal d’écart ajuste ta séance de 5 %, jusqu’à ±20 %. Aujourd’hui compte dès que tu dépasses ta cible ; un jour sans repas noté, ou à peine rempli, est ignoré.</div>
     </section>
 
     <section class="card session">
@@ -263,7 +264,8 @@ export function Workout({ db, actions }) {
   const cur = w ? seq[w.step] : null;
   if (!w || !cur) return null;
 
-  const elapsed = (now - w.startedAt) / 1000;
+  const stale = isStale(w, now);
+  const elapsed = Math.max(0, ((stale ? (w.lastAt || w.startedAt) : now) - w.startedAt - (w.pausedMs || 0)) / 1000);
   const left = w.phaseEnd ? (w.phaseEnd - now) / 1000 : 0;
   const weight = db.profile.weight;
   const finMin = (w.finSec + (cur.finisher && w.phase === 'work' ? (now - w.phaseStart) / 1000 : 0)) / 60;
@@ -293,6 +295,27 @@ export function Workout({ db, actions }) {
   const stats = names.map(() => ({ total: 0, done: 0 }));
   seq.forEach((st, idx) => { stats[st.block].total += 1; if (idx < w.step) stats[st.block].done += 1; });
   const curBlock = cur.block;
+
+  // Séance laissée en plan (app fermée, téléphone rangé) : on demande quoi en faire.
+  if (stale) {
+    return html`<div class="workout">
+      <div class="wk-head">
+        <div class="dim small">${w.plan.session.name}</div>
+        <div class="wk-title">Séance en pause</div>
+        <div class="wk-sub">Tu en étais à : ${cur.name}${cur.kind === 'set' ? ` · série ${cur.i} sur ${cur.n}` : ''}</div>
+      </div>
+      <div class="wk-center">
+        <div class="wk-big">${fmtClock(elapsed)}</div>
+        <div class="dim">d’entraînement avant la pause</div>
+        <div class="tiny dim" style="max-width:300px">Le temps passé hors de l’app ne compte ni dans la durée ni dans les calories.</div>
+      </div>
+      <div class="stack-s">
+        <button class="btn btn-light wide" onClick=${() => actions.resumeWorkout()}>Reprendre la séance</button>
+        <button class="btn btn-outline-light wide" onClick=${() => actions.finishWorkout(true)}>Terminer et enregistrer</button>
+        <button class="btn btn-outline-light wide" onClick=${() => actions.quitWorkout()}>Abandonner sans enregistrer</button>
+      </div>
+    </div>`;
+  }
 
   return html`<div class="workout">
     <div class="row-between">

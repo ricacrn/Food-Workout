@@ -3,7 +3,7 @@ import { getDay } from '../lib/store.js';
 import { GOALS, MEALS, targetFor, macroTargets, dayTotals, kcalOf } from '../lib/nutrition.js';
 import { balance, currentSession, buildPlan, nextTrainingDay, summary, planKcal } from '../lib/program.js';
 import { todayKey, addDays, longLabel, relativeDay } from '../lib/dates.js';
-import { fmt, sg, pctTxt, Icon, BarcodeGlyph, Ring, Sheet, Stepper, Kicker } from '../ui.js';
+import { fmt, sg, pctTxt, Icon, BarcodeGlyph, Ring, Sheet, Stepper, Kicker, Seg } from '../ui.js';
 
 function SourceThumb({ src }) {
   return html`<div class="thumb">
@@ -35,9 +35,15 @@ export function linkCard(db) {
 
 function EditEntry({ entry, onSave, onDelete, onClose }) {
   const [g, setG] = useState(entry.g);
+  const [name, setName] = useState(entry.name);
+  const [meal, setMeal] = useState(entry.meal);
   const kcal = kcalOf({ ...entry, g });
   return html`<${Sheet} onClose=${onClose} title=${entry.name}>
-    <div class="sheet-title">${entry.name}</div>
+    <label class="field">
+      <span class="field-label">Aliment</span>
+      <span class="field-box"><input type="text" value=${name} maxlength="60" aria-label="Nom de l’aliment" onInput=${e => setName(e.target.value)} /></span>
+    </label>
+    <${Seg} small options=${MEALS.map(m => ({ id: m.id, label: m.short }))} value=${meal} onChange=${setMeal} />
     <div class="row-between">
       <${Stepper} value=${g} unit=${entry.unit} step=${entry.unit === 'ml' ? 50 : g >= 150 ? 25 : 10} onChange=${setG} label=${`Quantité de ${entry.name}`} />
       <div class="big-num">${fmt(kcal)}<span class="unit"> kcal</span></div>
@@ -45,7 +51,7 @@ function EditEntry({ entry, onSave, onDelete, onClose }) {
     <div class="muted small">Pour 100 ${entry.unit} : ${fmt(entry.k100)} kcal · P ${Math.round(entry.p100)} g · G ${Math.round(entry.c100)} g · L ${Math.round(entry.f100)} g</div>
     <div class="btn-row">
       <button class="btn btn-ghost danger" onClick=${onDelete}><${Icon} name="trash" size=${18} /> Supprimer</button>
-      <button class="btn btn-dark" onClick=${() => onSave(g)}>Enregistrer</button>
+      <button class="btn btn-dark" disabled=${!g} onClick=${() => onSave({ g, meal, name: name.trim() || entry.name })}>Enregistrer</button>
     </div>
   </${Sheet}>`;
 }
@@ -67,6 +73,7 @@ export function Today({ db, ui, actions }) {
   const L = isToday ? linkCard(db) : null;
   const linkStyle = L && { up: 'link-up', down: 'link-down', even: 'link-even' }[L.kind];
 
+  const prevDay = getDay(db, addDays(k, -1));
   const mealGroups = MEALS.map(m => {
     const entries = day.entries.filter(e => e.meal === m.id);
     const kcal = entries.reduce((s, e) => s + kcalOf(e), 0);
@@ -74,7 +81,8 @@ export function Today({ db, ui, actions }) {
     entries.forEach(e => { srcCount[e.src] = (srcCount[e.src] || 0) + 1; });
     const src = Object.keys(srcCount).sort((a, b) => srcCount[b] - srcCount[a])[0] || 'text';
     const time = entries.length ? entries[0].time : '';
-    return { ...m, entries, kcal, src, time };
+    const prev = prevDay.entries.filter(e => e.meal === m.id);
+    return { ...m, entries, kcal, src, time, prev };
   });
 
   return html`<div class="screen scroll">
@@ -121,7 +129,12 @@ export function Today({ db, ui, actions }) {
     <section class="stack">
       <div class="section-head"><h2>Repas</h2><span class="muted small">${fmt(t.eaten)} kcal</span></div>
       ${mealGroups.map(m => m.entries.length === 0
-        ? html`<button key=${m.id} class="meal-empty" onClick=${() => actions.openAdd(m.id)}><span>${m.label}</span><span class="add-plus"><${Icon} name="plus" size=${18} /></span></button>`
+        ? html`<div key=${m.id} class="meal-empty split">
+            <button class="me-main" onClick=${() => actions.openAdd(m.id)}>${m.label}</button>
+            ${m.prev.length > 0 && html`<button class="chip" aria-label=${`${m.label} : reprendre le repas de la veille`}
+              onClick=${() => actions.reviewItems(m.id, k, m.prev.map(e => ({ name: e.name, g: e.g, unit: e.unit, k100: e.k100, p100: e.p100, c100: e.c100, f100: e.f100, src: e.src })))}>${isToday ? 'Comme hier' : 'Comme la veille'}</button>`}
+            <button class="add-plus" aria-label=${`Ajouter ${m.prep}`} onClick=${() => actions.openAdd(m.id)}><${Icon} name="plus" size=${18} /></button>
+          </div>`
         : html`<div key=${m.id} class="card meal">
             <button class="meal-head" aria-expanded=${!!open[m.id]} onClick=${() => setOpen({ ...open, [m.id]: !open[m.id] })}>
               <${SourceThumb} src=${m.src} />
@@ -158,6 +171,6 @@ export function Today({ db, ui, actions }) {
 
     ${editing && html`<${EditEntry} entry=${editing} onClose=${() => setEditing(null)}
       onDelete=${() => { actions.removeEntry(k, editing.id); setEditing(null); }}
-      onSave=${g => { actions.updateEntry(k, editing.id, { g }); setEditing(null); }} />`}
+      onSave=${patch => { actions.updateEntry(k, editing.id, patch); setEditing(null); }} />`}
   </div>`;
 }

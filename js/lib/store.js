@@ -13,6 +13,9 @@ export const defaultDb = () => ({
   sessions: [],
   sessIdx: 0,
   recents: [],
+  favs: [], // repas habituels
+  shop: { picks: [], checked: {}, extra: [] }, // liste de courses
+  myRecipes: [], // recettes sur mesure (IA)
   workout: null,
   settings: { apiKey: '', model: 'claude-sonnet-5-5' },
 });
@@ -40,6 +43,9 @@ function migrate(data) {
   if (db.workout && db.workout.v !== 2) db.workout = null; // séance en cours d'une ancienne version
   db.progress = db.progress || {};
   db.swaps = db.swaps || {};
+  db.favs = Array.isArray(db.favs) ? db.favs : [];
+  db.myRecipes = Array.isArray(db.myRecipes) ? db.myRecipes : [];
+  db.shop = { picks: [], checked: {}, extra: [], ...(db.shop || {}) };
   return db;
 }
 

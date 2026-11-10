@@ -1,6 +1,6 @@
 // Service worker : l'app s'ouvre même sans réseau.
 // À chaque mise à jour publiée, augmente le numéro de VERSION pour forcer le rafraîchissement.
-const VERSION = 'v1.1.1';
+const VERSION = 'v1.2.0';
 const CACHE = `platepace-${VERSION}`;
 const SHELL = [
   './',
@@ -13,6 +13,7 @@ const SHELL = [
   './js/views/add.js',
   './js/views/train.js',
   './js/views/settings.js',
+  './js/views/ideas.js',
   './js/lib/ai.js',
   './js/lib/dates.js',
   './js/lib/foods.js',
@@ -21,6 +22,8 @@ const SHELL = [
   './js/lib/scanner.js',
   './js/lib/sound.js',
   './js/lib/store.js',
+  './js/lib/recipes.js',
+  './js/lib/version.js',
   './vendor/preact-htm.js',
   './icons/icon-192.png',
   './icons/apple-touch-icon.png',
@@ -54,7 +57,8 @@ self.addEventListener('fetch', event => {
   // Fichiers de l'app : réseau d'abord (mises à jour immédiates), cache si hors ligne.
   if (url.origin === self.location.origin) {
     event.respondWith(
-      fetch(req)
+      // no-cache : on redemande toujours le fichier au serveur (sinon une mise à jour peut rester invisible 10 min)
+      fetch(req, { cache: 'no-cache' })
         .then(res => {
           if (res.ok) {
             const copy = res.clone();

@@ -4,6 +4,8 @@ import { ACTIVITIES, metKcal } from '../lib/program.js';
 import { DAY_LETTER, DAY_NAMES } from '../lib/dates.js';
 import { MODELS } from '../lib/ai.js';
 import { exportFile, importFile } from '../lib/store.js';
+import { APP_VERSION } from '../lib/version.js';
+import { SESSIONS } from '../lib/program.js';
 import { fmt, Icon, Seg, Sheet, Stepper, Kicker } from '../ui.js';
 
 function NumField({ label, value, unit, onChange, min, max }) {
@@ -93,6 +95,8 @@ export function Settings({ db, actions }) {
   const setS = patch => actions.update(d => { d.settings = { ...d.settings, ...patch }; });
   const [showKey, setShowKey] = useState(false);
   const fileRef = useRef(null);
+  const slots = new Set(SESSIONS.flatMap(s => s.ex.map(e => e.n)));
+  const swaps = Object.entries(db.swaps || {}).filter(([from]) => slots.has(from));
 
   const onImport = async e => {
     const f = e.target.files && e.target.files[0];
@@ -100,7 +104,7 @@ export function Settings({ db, actions }) {
     if (!f) return;
     try {
       const next = await importFile(f, db);
-      if (confirm('Remplacer toutes les données de ce téléphone par cette sauvegarde ?')) {
+      if (await actions.ask({ title: 'Restaurer cette sauvegarde ?', text: 'Toutes les données de ce téléphone seront remplacées par celles du fichier.', ok: 'Remplacer mes données', danger: true })) {
         actions.replaceDb(next);
         actions.notify('Sauvegarde restaurée');
       }
@@ -134,6 +138,15 @@ export function Settings({ db, actions }) {
       <${Choice} options=${MODELS.map(m => ({ id: m.id, label: m.label, sub: m.sub }))} value=${db.settings.model} onChange=${v => setS({ model: v })} />
     </section>
 
+    ${swaps.length > 0 && html`<section class="stack">
+      <h2>Exercices remplacés</h2>
+      <p class="muted small">Tes remplacements sont retenus pour toutes les séances. Rétablis l’exercice d’origine quand tu veux.</p>
+      ${swaps.map(([from, to]) => html`<div key=${from} class="card hist">
+        <div><div class="strong">${to}</div><div class="muted small">remplace ${from}</div></div>
+        <button class="text-btn accent" onClick=${() => actions.update(d => { delete d.swaps[from]; })}>Rétablir</button>
+      </div>`)}
+    </section>`}
+
     <section class="stack">
       <h2>Apple Watch</h2>
       <div class="card watch">
@@ -153,9 +166,9 @@ export function Settings({ db, actions }) {
         <button class="btn btn-ghost" onClick=${() => fileRef.current.click()}>Importer</button>
         <input ref=${fileRef} type="file" accept="application/json,.json" hidden onChange=${onImport} />
       </div>
-      <button class="text-btn danger" onClick=${() => { if (confirm('Effacer toutes les données (repas, séances, profil) ? C’est définitif.')) actions.wipe(); }}>Tout effacer</button>
+      <button class="text-btn danger" onClick=${async () => { if (await actions.ask({ title: 'Tout effacer ?', text: 'Repas, séances, progression et profil seront supprimés. C’est définitif.', ok: 'Tout effacer', danger: true })) actions.wipe(); }}>Tout effacer</button>
     </section>
-    <div class="muted tiny center foot">Plate & Pace · version 1.0 · données nutritionnelles : table interne et Open Food Facts</div>
+    <div class="muted tiny center foot">Plate & Pace · version ${APP_VERSION} · données nutritionnelles : table interne et Open Food Facts</div>
   </div>`;
 }
 

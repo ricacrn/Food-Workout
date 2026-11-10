@@ -46,7 +46,7 @@ export function Capture({ db, ui, actions }) {
   modeRef.current = mode;
   useEffect(() => () => { alive.current = false; }, []);
   // Chaque passage à la vérification remet à zéro ce qui vient d'une autre source.
-  const review = patch => { if (alive.current) actions.toReview({ photo: null, product: null, text: '', ...patch }); };
+  const review = patch => { if (alive.current) actions.toReview({ photo: null, product: null, text: '', favId: null, favName: '', ...patch }); };
 
   const switchMode = m => { setError(''); setBusy(''); setMode(m); };
 
@@ -110,9 +110,14 @@ export function Capture({ db, ui, actions }) {
     if (unknown.length && hasKey) {
       setBusy('Analyse…');
       try {
-        const ai = await analyzeText(db.settings, unknown.map(i => `${i.g} g ${i.name}`).join(', '));
-        items = [...items.filter(i => !i.unknown), ...ai.map(a => ({ ...a, src: 'text' }))];
-      } catch (err) { /* on garde l'estimation locale */ }
+        // on envoie ce que tu as écrit, pas la quantité devinée par l'app
+        const ai = await analyzeText(db.settings, unknown.map(i => i.raw || `${i.g} g ${i.name}`).join(', '));
+        if (ai.length) items = [...items.filter(i => !i.unknown), ...ai.map(a => ({ ...a, src: 'text' }))];
+      } catch (err) {
+        // on garde l'estimation locale, mais on te dit pourquoi
+        actions.notify(`IA indisponible, estimations à vérifier. ${err.message}`);
+      }
+      if (!alive.current) return;
     }
     review({ source: photo ? 'photo' : 'text', items: items.map(i => ({ ...i, src: photo ? 'photo' : 'text' })), text, photo });
   }
@@ -145,6 +150,13 @@ export function Capture({ db, ui, actions }) {
       <textarea id="meal-text" value=${text} onInput=${e => setText(e.target.value)}
         placeholder="Ex : 150 g de riz, 120 g de saumon, brocolis"></textarea>
       <div class="text-help">Sépare les aliments par des virgules. Les grammes sont facultatifs : tu les ajustes à l’étape suivante.</div>
+      ${db.favs.length > 0 && html`<div class="recents">
+        <div class="kicker on-dark">Repas habituels</div>
+        <div class="chips">
+          ${db.favs.map(f => html`<button key=${f.id} class="chip-dark fav"
+            onClick=${() => review({ source: 'text', items: f.items.map(i => ({ ...i })), favId: f.id, favName: f.name })}><${Icon} name="star" size=${14} /> ${f.name} · ${fmt(f.items.reduce((s, i) => s + kcalOf(i), 0))} kcal</button>`)}
+        </div>
+      </div>`}
       ${db.recents.length > 0 && html`<div class="recents">
         <div class="kicker on-dark">Récents</div>
         <div class="chips">
@@ -184,6 +196,9 @@ export function Review({ db, ui, actions }) {
   })));
   const [meal, setMeal] = useState(d.meal);
   const [more, setMore] = useState('');
+  const [fav, setFav] = useState(false);
+  const [favName, setFavName] = useState('');
+  const isFav = !!d.favId && db.favs.some(f => f.id === d.favId);
   const tk = todayKey();
   const isToday = d.date === tk;
   const active = items.filter(i => i.on && i.g > 0);
@@ -258,6 +273,14 @@ export function Review({ db, ui, actions }) {
         <input type="text" placeholder="Ajouter un aliment (ex : 1 c. à soupe d’huile)" aria-label="Ajouter un aliment" value=${more} onInput=${e => setMore(e.target.value)} />
         <button type="submit" class="icon-btn dark" aria-label="Ajouter"><${Icon} name="plus" size=${18} /></button>
       </form>
+
+      ${isFav
+        ? html`<button class="text-btn danger" onClick=${() => { actions.removeFav(d.favId); actions.notify('Retiré de tes repas habituels'); }}>Retirer « ${d.favName} » de mes repas habituels</button>`
+        : d.source !== 'barcode' && active.length > 0 && html`<div class="fav-box">
+            <button class="text-btn" role="switch" aria-checked=${fav} onClick=${() => { setFav(!fav); if (!favName) setFavName(`${mealInfo.label} habituel`); }}>
+              <span class=${`box ${fav ? 'on' : ''}`}>${fav && html`<${Icon} name="check" size=${14} stroke=${3} />`}</span> Garder comme repas habituel</button>
+            ${fav && html`<input type="text" class="fav-name" maxlength="40" aria-label="Nom du repas habituel" value=${favName} onInput=${e => setFavName(e.target.value)} />`}
+          </div>`}
     </div>
 
     <div class="review-foot">
@@ -267,7 +290,7 @@ export function Review({ db, ui, actions }) {
           ${B2.steps === B.steps ? `inchangée (${adjShort(B.pct)})` : `${adjShort(B.pct)} → ${adjShort(B2.pct)}`}</span>
       </div>`}
       <button class="btn btn-dark wide" disabled=${!active.length}
-        onClick=${() => actions.addEntries(d.date, meal, active, d.source)}>Ajouter ${mealInfo.prep} · ${fmt(total)} kcal</button>
+        onClick=${() => actions.addEntries(d.date, meal, active, d.source, fav && !isFav ? (favName.trim() || `${mealInfo.label} habituel`) : '')}>Ajouter ${mealInfo.prep} · ${fmt(total)} kcal</button>
     </div>
   </div>`;
 }

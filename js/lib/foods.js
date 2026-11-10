@@ -195,7 +195,7 @@ const NUM_WORDS = { un: 1, une: 1, deux: 2, trois: 3, quatre: 4, cinq: 5, six: 6
 const QTY = new RegExp(/(\d+(?:[.,]\d+)?|½|\bune?\b|\bdeux\b|\btrois\b|\bquatre\b|\bcinq\b|\bsix\b|\bdemie?\b)\s*(kg|grammes?|gr|g|cl|ml|l|c ?a ?s|c ?a ?c|cs|cc|cuill?e?res? a soupe|cuill?e?res? a cafe|verres?|tasses?|bols?|poignees?|tranches?|assiettes?|portions?|pots?|carres?|morceaux?|parts?|boules?)?(?![a-z])/.source, 'g');
 
 function toGrams(qty, unit, food) {
-  const piece = food ? food.unit || food.def : 100;
+  const piece = food ? food.unit || food.def : 40; // pièce d'un aliment inconnu : ~40 g
   if (!unit) return qty <= 20 ? qty * piece : qty; // "2 œufs" ou "150 riz"
   if (unit === 'kg' || unit === 'l') return qty * 1000;
   if (unit === 'cl') return qty * 10;
@@ -246,7 +246,7 @@ export function parseText(txt) {
         .trim();
       return {
         name: guess ? guess.charAt(0).toUpperCase() + guess.slice(1) : 'Aliment',
-        g: Math.round(g), unit: 'g', k100: 150, p100: 6, c100: 18, f100: 6, src: 'text', unknown: true,
+        g: Math.round(g), unit: 'g', k100: 150, p100: 6, c100: 18, f100: 6, src: 'text', unknown: true, raw,
       };
     });
 }

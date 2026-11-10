@@ -1,16 +1,25 @@
 import { html, render, useState, useEffect, useRef } from '../vendor/preact-htm.js';
 import * as store from './lib/store.js';
 import { mealForNow } from './lib/nutrition.js';
-import { sequence, metKcal, exerciseEntry, recompute, roundKg } from './lib/program.js';
+import { sequence, metKcal, exerciseEntry, recompute, roundKg, isStale } from './lib/program.js';
 import { todayKey, hhmm } from './lib/dates.js';
 import { unlockAudio, keepAwake } from './lib/sound.js';
-import { Icon } from './ui.js';
+import { Icon, ConfirmSheet } from './ui.js';
 import { Today } from './views/today.js';
 import { Capture, Review } from './views/add.js';
 import { Train, Workout, Done } from './views/train.js';
+import { Ideas, Shop } from './views/ideas.js';
 import { Onboarding, Settings, ActivitySheet } from './views/settings.js';
 
 const { uid } = store;
+
+// Écrans où l'app peut se recharger sans rien te faire perdre (mise à jour automatique).
+const SAFE = ['today', 'train', 'ideas', 'shop', 'settings'];
+let pendingReload = false;
+let currentScreen = 'today';
+function tryReload() {
+  if (pendingReload && SAFE.includes(currentScreen)) { pendingReload = false; location.reload(); }
+}
 
 function enterStep(w, now) {
   const st = sequence(w.plan)[w.step];
@@ -58,14 +67,35 @@ function swapInWorkout(d, slot, name) {
   w.plan.ex[i] = exerciseEntry(d, slotObj, name, w.plan.goal, old.d);
 }
 
+// Supprime une activité ; si c'est une séance, annule aussi sa progression et remet le programme en place.
+function removeActivityIn(d, date, id) {
+  if (!d.days[date]) return;
+  const a = d.days[date].activities.find(x => x.id === id);
+  d.days[date].activities = d.days[date].activities.filter(x => x.id !== id);
+  if (!a || a.type !== 'session') return;
+  const i = a.sid ? d.sessions.findIndex(s => s.id === a.sid) : d.sessions.findIndex(s => s.date === date && s.name === a.label);
+  if (i >= 0) {
+    // c'était la dernière séance : le programme la repropose au lieu de la sauter
+    if (i === d.sessions.length - 1) d.sessIdx = Math.max(0, d.sessIdx - 1);
+    d.sessions.splice(i, 1);
+  }
+  if (a.sid) Object.entries(d.progress).forEach(([name, p]) => {
+    if (!p.hist || !p.hist.some(h => h.sid === a.sid)) return;
+    p.hist = p.hist.filter(h => h.sid !== a.sid);
+    recompute(p, name);
+  });
+}
+
 function App() {
   const [db, setDb] = useState(store.load);
   const [ui, setUi] = useState(() => ({ screen: db.workout ? 'workout' : 'today', date: todayKey(), draft: null, sheet: null, done: null }));
-  const [toast, setToast] = useState('');
+  const [toast, setToast] = useState(null);
+  const [dialog, setDialog] = useState(null);
   const toastT = useRef(null);
   const seenToday = useRef(todayKey());
 
   useEffect(() => { window.scrollTo(0, 0); }, [ui.screen, !!db.profile]);
+  useEffect(() => { currentScreen = db.profile ? ui.screen : 'today'; tryReload(); }, [ui.screen, !!db.profile]);
 
   const update = fn =>
     setDb(prev => {
@@ -76,24 +106,37 @@ function App() {
       return next;
     });
 
-  function notify(msg) {
-    setToast(msg);
+  // undo : état à restaurer si tu touches « Annuler » dans le message.
+  function notify(msg, undo) {
+    setToast({ msg, undo: undo || null });
     clearTimeout(toastT.current);
-    toastT.current = setTimeout(() => setToast(''), 2800);
+    toastT.current = setTimeout(() => setToast(null), undo ? 6000 : 2800);
   }
+  function undoLast() {
+    if (!toast || !toast.undo) return;
+    store.save(toast.undo);
+    setDb(toast.undo);
+    clearTimeout(toastT.current);
+    setToast(null);
+  }
+
+  // Question posée dans une fenêtre de l'app. Renvoie true, false, ou l'id du bouton supplémentaire.
+  const ask = opts => new Promise(resolve => setDialog({ ...opts, resolve }));
+  const answer = v => { const d = dialog; setDialog(null); if (d) d.resolve(v); };
 
   const go = (screen, extra = {}) => setUi(u => ({ ...u, screen, sheet: null, ...extra }));
 
   function finishWorkout(wArg) {
     const w = wArg || db.workout;
     if (!w) return;
-    const now = Date.now();
+    // Séance oubliée : on arrête le compteur à ta dernière action, pas à maintenant.
+    const now = isStale(w, Date.now()) ? (w.lastAt || w.startedAt) : Date.now();
     const seq = sequence(w.plan);
     const cur = seq[w.step];
     let finSec = w.finSec;
-    if (cur && cur.finisher && w.phase === 'work') finSec += (now - w.phaseStart) / 1000;
-    const min = Math.max(1, Math.round((now - w.startedAt) / 60000));
-    const finMin = finSec / 60;
+    if (cur && cur.finisher && w.phase === 'work') finSec += Math.max(0, (Math.min(now, w.phaseEnd || now) - w.phaseStart) / 1000);
+    const min = Math.max(1, Math.round((now - w.startedAt - (w.pausedMs || 0)) / 60000));
+    const finMin = Math.min(min, finSec / 60);
     const kcal = metKcal(5, db.profile.weight, Math.max(0, min - finMin)) + metKcal(8, db.profile.weight, finMin);
     const name = w.plan.session.name;
     const sid = uid();
@@ -124,20 +167,24 @@ function App() {
   }
 
   const actions = {
-    update, notify, go,
+    update, notify, go, ask,
     setDate: date => setUi(u => ({ ...u, date })),
-    replaceDb: next => { store.save(next); setDb(next); go('today'); },
+    replaceDb: next => { store.save(next); setDb(next); go('today', { date: todayKey() }); },
     wipe: () => { store.wipe(); setDb(store.defaultDb()); go('today', { date: todayKey() }); },
 
     // Ajout de repas (depuis Entraînement, c'est toujours pour aujourd'hui)
     openAdd: (meal, mode = 'text') => go('add', {
       draft: { meal: meal || mealForNow(), date: ui.screen === 'today' ? ui.date || todayKey() : todayKey(), mode },
     }),
+    reviewItems: (meal, date, items, extra = {}) => go('review', {
+      draft: { meal, date, mode: 'text', source: 'text', items: items.map(i => ({ ...i })), photo: null, product: null, text: '', ...extra },
+    }),
     closeAdd: () => go('today'),
     toReview: patch => setUi(u => ({ ...u, screen: 'review', draft: { ...u.draft, ...patch } })),
     backToCapture: mode => setUi(u => ({ ...u, screen: 'add', draft: { ...u.draft, mode } })),
-    addEntries: (date, meal, items, source) => {
+    addEntries: (date, meal, items, source, favName) => {
       const time = hhmm();
+      const snap = db;
       update(d => {
         d.days[date] = d.days[date] || store.emptyDay();
         items.forEach(i => d.days[date].entries.push({
@@ -146,11 +193,17 @@ function App() {
         }));
         const fresh = items.map(i => ({ name: i.name, g: i.g, unit: i.unit, k100: i.k100, p100: i.p100 || 0, c100: i.c100 || 0, f100: i.f100 || 0, src: i.src || source }));
         d.recents = [...fresh, ...d.recents.filter(r => !fresh.some(f => f.name === r.name))].slice(0, 24);
+        if (favName) d.favs = [{ id: uid(), name: favName, items: fresh }, ...d.favs.filter(f => f.name !== favName)].slice(0, 12);
       });
       go('today', { date });
-      notify('Repas ajouté');
+      notify(favName ? 'Repas ajouté et gardé dans tes repas habituels' : 'Repas ajouté', snap);
     },
-    removeEntry: (date, id) => update(d => { if (d.days[date]) d.days[date].entries = d.days[date].entries.filter(e => e.id !== id); }),
+    removeFav: id => update(d => { d.favs = d.favs.filter(f => f.id !== id); }),
+    removeEntry: (date, id) => {
+      const snap = db;
+      update(d => { if (d.days[date]) d.days[date].entries = d.days[date].entries.filter(e => e.id !== id); });
+      notify('Aliment supprimé', snap);
+    },
     updateEntry: (date, id, patch) => update(d => {
       const e = d.days[date] && d.days[date].entries.find(x => x.id === id);
       if (e) Object.assign(e, patch);
@@ -158,21 +211,13 @@ function App() {
 
     // Activités
     openActivity: () => setUi(u => ({ ...u, sheet: 'activity' })),
-    removeActivity: (date, id) => update(d => {
-      if (!d.days[date]) return;
-      const a = d.days[date].activities.find(x => x.id === id);
-      d.days[date].activities = d.days[date].activities.filter(x => x.id !== id);
-      if (a && a.type === 'session') {
-        const i = a.sid ? d.sessions.findIndex(s => s.id === a.sid) : d.sessions.findIndex(s => s.date === date && s.name === a.label);
-        if (i >= 0) d.sessions.splice(i, 1);
-        // annule aussi la progression enregistrée pendant cette séance
-        if (a.sid) Object.entries(d.progress).forEach(([name, p]) => {
-          if (!p.hist || !p.hist.some(h => h.sid === a.sid)) return;
-          p.hist = p.hist.filter(h => h.sid !== a.sid);
-          recompute(p, name);
-        });
-      }
-    }),
+    removeActivity: (date, id) => {
+      const snap = db;
+      const act = db.days[date] && db.days[date].activities.find(x => x.id === id);
+      if (!act) return;
+      update(d => removeActivityIn(d, date, id));
+      notify(act.type === 'session' ? 'Séance supprimée' : 'Activité supprimée', snap);
+    },
 
     // Séance
     startWorkout: (plan, B) => {
@@ -180,14 +225,14 @@ function App() {
       keepAwake(true);
       const now = Date.now();
       update(d => {
-        d.workout = { v: 2, plan, date: todayKey(), startedAt: now, step: 0, phase: 'work', phaseStart: now, phaseEnd: null, finSec: 0, preSum: B.sum, done: {}, ratings: {} };
+        d.workout = { v: 2, plan, date: todayKey(), startedAt: now, lastAt: now, pausedMs: 0, step: 0, phase: 'work', phaseStart: now, phaseEnd: null, finSec: 0, preSum: B.sum, done: {}, ratings: {} };
         enterStep(d.workout, now);
       });
       go('workout');
     },
     workoutTick: () => setDb(prev => {
       const w = prev.workout;
-      if (!w || !w.phaseEnd || Date.now() < w.phaseEnd) return prev;
+      if (!w || !w.phaseEnd || Date.now() < w.phaseEnd || isStale(w, Date.now())) return prev;
       const next = structuredClone(prev);
       const nw = next.workout;
       const now = Date.now();
@@ -203,6 +248,7 @@ function App() {
       unlockAudio(); // réactive le son après une reprise de séance
       const now = Date.now();
       const nw = structuredClone(w);
+      nw.lastAt = now;
       if (nw.phase === 'rest') {
         enterStep(nw, now);
       } else if (advance(nw, now)) {
@@ -211,8 +257,24 @@ function App() {
       }
       update(d => { d.workout = nw; });
     },
+    // Reprise d'une séance laissée en plan : le temps d'absence ne compte pas.
+    resumeWorkout: () => {
+      unlockAudio();
+      keepAwake(true);
+      update(d => {
+        const w = d.workout;
+        if (!w) return;
+        const now = Date.now();
+        const last = w.lastAt || w.startedAt;
+        w.pausedMs = (w.pausedMs || 0) + Math.max(0, now - last);
+        if (w.phaseEnd) w.phaseEnd = now + Math.max(0, w.phaseEnd - Math.max(w.phaseStart, last));
+        w.phaseStart = now - Math.max(0, last - w.phaseStart);
+        w.lastAt = now;
+      });
+    },
     rate: (name, rating) => update(d => {
       if (!d.workout) return;
+      d.workout.lastAt = Date.now();
       d.workout.ratings = d.workout.ratings || {};
       d.workout.ratings[name] = rating;
     }),
@@ -227,7 +289,7 @@ function App() {
       const v = roundKg(kg);
       update(d => {
         d.progress[name] = { ...(d.progress[name] || {}), kg: v };
-        if (d.workout) d.workout.plan.ex.forEach(e => { if (e.name === name) e.kg = v; });
+        if (d.workout) { d.workout.lastAt = Date.now(); d.workout.plan.ex.forEach(e => { if (e.name === name) e.kg = v; }); }
       });
     },
     setTarget: (name, patch) => update(d => {
@@ -241,19 +303,20 @@ function App() {
           if (name === slot) delete d.swaps[slot];
           else d.swaps[slot] = name;
         }
+        if (d.workout) d.workout.lastAt = Date.now();
         swapInWorkout(d, slot, name);
       });
-      notify(name === slot ? `Retour à ${slot}` : mode === 'always' ? `${name} remplace ${slot} dans ton programme` : `${name} pour cette séance`);
+      notify(name === slot ? `Retour à ${slot}` : mode === 'always' ? `${name} remplace ${slot} · retenu pour les prochaines séances` : `${name} pour cette séance seulement`);
     },
-    finishWorkout: () => {
+    finishWorkout: async (sure) => {
       const w = db.workout;
       if (!w) return;
       const left = sequence(w.plan).length - w.step - 1;
-      if (left > 0 && !confirm('Terminer la séance maintenant ? Elle sera enregistrée avec les séries déjà faites.')) return;
+      if (!sure && left > 0 && !(await ask({ title: 'Terminer la séance maintenant ?', text: 'Elle sera enregistrée avec les séries déjà faites.', ok: 'Terminer et enregistrer', cancel: 'Continuer la séance' }))) return;
       finishWorkout();
     },
-    quitWorkout: () => {
-      if (!confirm('Quitter la séance sans l’enregistrer ?')) return;
+    quitWorkout: async (sure) => {
+      if (!sure && !(await ask({ title: 'Quitter sans enregistrer ?', text: 'Les séries faites pendant cette séance seront perdues.', ok: 'Quitter sans enregistrer', cancel: 'Continuer la séance', danger: true }))) return;
       update(d => { d.workout = null; });
       keepAwake(false);
       go('train');
@@ -263,11 +326,14 @@ function App() {
   // Fin automatique quand le dernier minuteur (cardio final) se termine.
   useEffect(() => { if (db.workout && db.workout.ended) finishWorkout(); }, [db.workout && db.workout.ended]);
 
+  // Demande au téléphone de ne pas effacer les données de l'app quand il manque de place.
+  useEffect(() => { try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {}); } catch (e) { /* non supporté */ } }, []);
+
   // Au retour dans l'app : écran allumé pendant la séance, et passage au nouveau jour après minuit.
   useEffect(() => {
     const onVis = () => {
       if (document.visibilityState !== 'visible') return;
-      if (db.workout) keepAwake(true);
+      if (db.workout && !isStale(db.workout, Date.now())) keepAwake(true);
       const tk = todayKey();
       if (tk !== seenToday.current) {
         const old = seenToday.current;
@@ -284,10 +350,12 @@ function App() {
   }
 
   const s = ui.screen;
-  const showTabs = s === 'today' || s === 'train';
+  const showTabs = s === 'today' || s === 'train' || s === 'ideas';
   return html`<div class="app">
     ${s === 'today' && html`<${Today} db=${db} ui=${ui} actions=${actions} />`}
     ${s === 'train' && html`<${Train} db=${db} ui=${ui} actions=${actions} />`}
+    ${s === 'ideas' && html`<${Ideas} db=${db} ui=${ui} actions=${actions} />`}
+    ${s === 'shop' && html`<${Shop} db=${db} ui=${ui} actions=${actions} />`}
     ${s === 'settings' && html`<${Settings} db=${db} ui=${ui} actions=${actions} />`}
     ${s === 'add' && html`<${Capture} db=${db} ui=${ui} actions=${actions} />`}
     ${s === 'review' && html`<${Review} db=${db} ui=${ui} actions=${actions} />`}
@@ -296,8 +364,9 @@ function App() {
 
     ${showTabs && html`<nav class="tabbar" aria-label="Navigation">
       <button class=${s === 'today' ? 'on' : ''} aria-current=${s === 'today' ? 'page' : undefined} onClick=${() => go('today', { date: todayKey() })}>Aujourd’hui</button>
-      <button class="fab" aria-label="Ajouter un repas" onClick=${() => actions.openAdd()}><${Icon} name="plus" size=${26} stroke=${2.6} /></button>
+      <button class=${s === 'ideas' ? 'on' : ''} aria-current=${s === 'ideas' ? 'page' : undefined} onClick=${() => go('ideas')}>Idées</button>
       <button class=${s === 'train' ? 'on' : ''} aria-current=${s === 'train' ? 'page' : undefined} onClick=${() => go('train')}>Entraînement</button>
+      <button class="fab" aria-label="Ajouter un repas" onClick=${() => actions.openAdd()}><${Icon} name="plus" size=${24} stroke=${2.6} /></button>
     </nav>`}
 
     ${ui.sheet === 'activity' && html`<${ActivitySheet} db=${db} onClose=${() => setUi(u => ({ ...u, sheet: null }))}
@@ -308,12 +377,29 @@ function App() {
         notify('Activité ajoutée');
       }} />`}
 
-    ${toast && html`<div class="toast" role="status">${toast}</div>`}
+    ${dialog && html`<${ConfirmSheet} ...${dialog} onAnswer=${answer} />`}
+
+    ${toast && html`<div class=${`toast ${showTabs && !dialog ? 'above-tabs' : ''}`} role="status" onClick=${() => { if (!toast.undo) setToast(null); }}>
+      <span>${toast.msg}</span>
+      ${toast.undo && html`<button onClick=${undoLast}>Annuler</button>`}
+    </div>`}
   </div>`;
 }
 
 render(html`<${App} />`, document.getElementById('app'));
 
+// Service worker : hors ligne + mise à jour automatique.
+// Quand une nouvelle version prend la main, l'app se recharge dès que tu es sur un écran sans saisie en cours.
 if ('serviceWorker' in navigator && location.protocol === 'https:') {
-  navigator.serviceWorker.register('./sw.js').catch(() => {});
+  const hadController = !!navigator.serviceWorker.controller;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!hadController) return; // première installation : rien à recharger
+    pendingReload = true;
+    tryReload();
+  });
+  navigator.serviceWorker.register('./sw.js').then(reg => {
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') reg.update().catch(() => {});
+    });
+  }).catch(() => {});
 }
