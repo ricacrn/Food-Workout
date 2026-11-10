@@ -3,7 +3,7 @@
 import { findFood } from './foods.js';
 import { MEALS, targetFor, dayTotals } from './nutrition.js';
 import { getDay } from './store.js';
-import { fromKey } from './dates.js';
+import { fromKey, todayKey, addDays } from './dates.js';
 
 export const AISLES = [
   { id: 'legumes', label: 'Fruits et légumes' },
@@ -296,10 +296,46 @@ const fmtQty = (g, unit) => {
 };
 
 /** Liste de courses : ingrédients des repas choisis, additionnés et rangés par rayon. */
+/** Tout ce qui alimente la liste : les repas choisis à la main et les repas planifiés à partir d'aujourd'hui. */
+export function shopSources(db) {
+  const tk = todayKey();
+  const out = ((db.shop && db.shop.picks) || []).map(p => ({ ...p, kind: 'pick' }));
+  Object.keys(db.plan || {}).sort().forEach(k => {
+    if (k < tk) return;
+    PLAN_MEALS.forEach(m => {
+      const rid = db.plan[k] && db.plan[k][m];
+      if (rid) out.push({ uid: `${k}|${m}`, rid, f: 1, n: db.planN || 1, kind: 'plan', date: k, meal: m });
+    });
+  });
+  return out;
+}
+
+export const PLAN_MEALS = ['dejeuner', 'diner'];
+
+/** Remplit les dîners vides des 7 prochains jours avec des recettes différentes. */
+export function autoPlan(db, from = todayKey()) {
+  const plan = structuredClone(db.plan || {});
+  const mains = allRecipes(db).filter(r => r.meals.includes('diner'));
+  const used = new Set();
+  for (let i = 0; i < 7; i++) { const d = plan[addDays(from, i)]; if (d) PLAN_MEALS.forEach(m => d[m] && used.add(d[m])); }
+  let n = dayIndex(from) * 5;
+  for (let i = 0; i < 7; i++) {
+    const k = addDays(from, i);
+    if (plan[k] && plan[k].diner) continue;
+    let r = null;
+    for (let t = 0; t < mains.length && !r; t++) { const c = mains[(n + t) % mains.length]; if (!used.has(c.id)) r = c; }
+    if (!r) r = mains[n % mains.length];
+    n += 3;
+    used.add(r.id);
+    plan[k] = { ...(plan[k] || {}), diner: r.id };
+  }
+  return plan;
+}
+
 export function shopList(db) {
   const shop = db.shop || { picks: [], checked: {}, extra: [] };
   const map = new Map();
-  shop.picks.forEach(p => {
+  shopSources(db).forEach(p => {
     const r = findRecipe(db, p.rid);
     if (!r) return;
     scaled(r, p.f || 1).forEach(i => {

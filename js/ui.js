@@ -90,32 +90,37 @@ export function Kicker({ children, style }) {
   return html`<div class="kicker" style=${style}>${children}</div>`;
 }
 
-const kgTxt = v => String(Math.max(0, Math.round(v * 4) / 4)).replace('.', ',');
+const kgTxtQ = v => String(Math.max(0, Math.round(v * 4) / 4)).replace('.', ',');
 
 /** Réglage de charge : − / + avec un pas au choix, ou saisie directe. */
-export function LoadControl({ value, step, steps, onChange, onStep, dark }) {
+export function LoadControl({ value, step: step0, steps, onChange, onStep, dark, fine }) {
+  // fine : au dixième (poids du corps), avec son propre pas ; sinon au quart de kilo (charges)
+  const [own, setOwn] = useState(step0);
+  const step = fine ? own : step0;
+  const kgTxt = fine ? (v => String(Math.max(0, Math.round(v * 10) / 10)).replace('.', ',')) : kgTxtQ;
+  const rnd = fine ? (v => Math.round(v * 10) / 10) : (v => Math.round(v * 4) / 4);
   const [txt, setTxt] = useState(kgTxt(value));
   useEffect(() => { setTxt(kgTxt(value)); }, [value]);
   const commit = () => {
     const v = parseFloat(String(txt).replace(',', '.'));
-    if (!isNaN(v) && v >= 0 && v <= 500) onChange(Math.round(v * 4) / 4);
+    if (!isNaN(v) && v >= 0 && v <= 500) onChange(rnd(v));
     else setTxt(kgTxt(value));
   };
   return html`<div class=${`loadc ${dark ? 'dark' : ''}`}>
     <div class="loadc-row">
-      <button type="button" aria-label=${`Moins ${kgTxt(step)} kg`} onClick=${() => onChange(Math.max(0, value - step))}>−</button>
+      <button type="button" aria-label=${`Moins ${kgTxt(step)} kg`} onClick=${() => onChange(Math.max(0, rnd(value - step)))}>−</button>
       <label class="loadc-val">
         <input type="text" inputmode="decimal" aria-label="Charge en kg" value=${txt}
           onFocus=${e => e.target.select()} onInput=${e => setTxt(e.target.value.replace(/[^\d.,]/g, ''))}
           onBlur=${commit} onKeyDown=${e => { if (e.key === 'Enter') e.target.blur(); }} />
         <span>kg</span>
       </label>
-      <button type="button" aria-label=${`Plus ${kgTxt(step)} kg`} onClick=${() => onChange(value + step)}>+</button>
+      <button type="button" aria-label=${`Plus ${kgTxt(step)} kg`} onClick=${() => onChange(rnd(value + step))}>+</button>
     </div>
     <div class="loadc-steps" role="radiogroup" aria-label="Pas de réglage">
       <span>Pas</span>
       ${steps.map(s => html`<button key=${s} type="button" role="radio" aria-checked=${s === step}
-        class=${s === step ? 'on' : ''} onClick=${() => onStep(s)}>${kgTxt(s)}</button>`)}
+        class=${s === step ? 'on' : ''} onClick=${() => { setOwn(s); onStep(s); }}>${kgTxt(s)}</button>`)}
     </div>
   </div>`;
 }

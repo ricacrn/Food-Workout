@@ -75,7 +75,68 @@ export const EXERCISES = {
   'Roue abdominale': { kind: 'bw', reps: 8, gear: 'Roue' },
   'Pallof press': { kind: 'kg', kg: 10, gear: 'Poulie ou élastique' },
   'Rotation russe': { kind: 'bw', reps: 20, gear: 'Sans matériel' },
+  // Sans machine ni barre (maison, salle peu équipée)
+  'Pompes prise serrée': { kind: 'bw', reps: 10, gear: 'Sans matériel' },
+  'Rowing sous une table': { kind: 'bw', reps: 8, gear: 'Table solide' },
+  'Rowing élastique': { kind: 'bw', reps: 15, gear: 'Élastique' },
+  'Superman': { kind: 'bw', reps: 15, gear: 'Sans matériel' },
+  'Y-T-W au sol': { kind: 'bw', reps: 12, gear: 'Sans matériel' },
+  'Curl élastique': { kind: 'bw', reps: 15, gear: 'Élastique' },
 };
+
+// ── Matériel ──────────────────────────────────────────────────────────────────
+export const EQUIPMENT = [
+  { id: 'barre', label: 'Barre et disques' },
+  { id: 'halteres', label: 'Haltères ou kettlebell' },
+  { id: 'banc', label: 'Banc' },
+  { id: 'poulie', label: 'Poulies' },
+  { id: 'traction', label: 'Barre de traction' },
+  { id: 'dips', label: 'Barres à dips' },
+  { id: 'elastique', label: 'Élastiques' },
+  { id: 'ez', label: 'Barre EZ' },
+  { id: 'trap', label: 'Trap bar' },
+  { id: 'roue', label: 'Roue abdominale' },
+  { id: 'm_presse', label: 'Presse à cuisses', machine: true },
+  { id: 'm_hack', label: 'Hack squat', machine: true },
+  { id: 'm_legcurl', label: 'Leg curl', machine: true },
+  { id: 'm_pec', label: 'Presse pectoraux', machine: true },
+  { id: 'm_epaules', label: 'Presse épaules', machine: true },
+  { id: 'm_rowing', label: 'Rowing machine', machine: true },
+  { id: 'm_pecdeck', label: 'Pec deck', machine: true },
+  { id: 'm_assist', label: 'Tractions assistées', machine: true },
+];
+
+// Matériel nécessaire : chaque ligne est une liste de solutions possibles (il en suffit d'une).
+const NEED = {
+  'Squat': [['barre']], 'Presse à cuisses': [['m_presse']], 'Hack squat': [['m_hack']], 'Goblet squat': [['halteres']],
+  'Fentes bulgares': [['halteres', 'banc']], 'Fentes marchées': [['halteres']], 'Step-up sur banc': [['halteres', 'banc']],
+  'Soulevé de terre roumain': [['barre']], 'Soulevé de terre roumain haltères': [['halteres']], 'Hip thrust': [['barre', 'banc']],
+  'Leg curl': [['m_legcurl']], 'Soulevé de terre': [['barre']], 'Soulevé de terre trap bar': [['trap']],
+  'Développé couché': [['barre', 'banc']], 'Développé couché haltères': [['halteres', 'banc']], 'Presse pectoraux': [['m_pec']],
+  'Développé militaire haltères': [['halteres']], 'Développé militaire barre': [['barre']], 'Presse épaules': [['m_epaules']],
+  'Dips': [['dips']], 'Développé couché prise serrée': [['barre', 'banc']], 'Dips sur banc': [['banc']],
+  'Extensions triceps': [['poulie']], 'Barre au front': [['ez', 'banc']], 'Extension haltère nuque': [['halteres']], 'Kickback haltère': [['halteres']],
+  'Tractions': [['traction']], 'Tirage vertical': [['poulie']], 'Tractions assistées': [['m_assist'], ['traction', 'elastique']],
+  'Rowing inversé': [['traction']], 'Rowing barre': [['barre']], 'Rowing haltère un bras': [['halteres']], 'Tirage horizontal': [['poulie']],
+  'Rowing machine': [['m_rowing']], 'Face pull': [['poulie']], 'Oiseau haltères': [['halteres']], 'Pec deck inversé': [['m_pecdeck']],
+  'Tirage élastique': [['elastique']], 'Rowing élastique': [['elastique']], 'Curl élastique': [['elastique']],
+  'Curl biceps': [['halteres']], 'Curl marteau': [['halteres']], 'Curl barre EZ': [['ez']], 'Curl poulie': [['poulie']],
+  'Roue abdominale': [['roue']], 'Pallof press': [['poulie'], ['elastique']],
+};
+
+export const PLACES = [{ id: 'salle', label: 'Ma salle' }, { id: 'maison', label: 'Maison' }];
+export const defaultGear = () => ({ active: 'salle', salle: null, maison: ['halteres', 'elastique'] }); // null = tout le matériel
+
+/** Matériel du lieu actif (null = tout est disponible). */
+export const gearHas = db => { const g = db.gear || defaultGear(); return g[g.active] ?? null; };
+
+/** L'exercice est-il faisable avec le matériel du lieu actif ? */
+export function feasible(db, name) {
+  const has = gearHas(db);
+  const need = NEED[name];
+  if (!has || !need) return true;
+  return need.some(set => set.every(id => has.includes(id)));
+}
 
 // Programme tournant (une séance après l'autre sur tes jours d'entraînement).
 // n = exercice d'origine, s = séries, alts = remplacements possibles.
@@ -90,18 +151,18 @@ export const SESSIONS = [
     { n: 'Développé couché', s: 4, alts: ['Développé couché haltères', 'Presse pectoraux', 'Pompes'] },
     { n: 'Développé militaire haltères', s: 3, alts: ['Développé militaire barre', 'Presse épaules', 'Pompes piquées'] },
     { n: 'Dips', s: 3, alts: ['Développé couché prise serrée', 'Pompes diamant', 'Dips sur banc'] },
-    { n: 'Extensions triceps', s: 3, alts: ['Barre au front', 'Extension haltère nuque', 'Kickback haltère'] },
+    { n: 'Extensions triceps', s: 3, alts: ['Barre au front', 'Extension haltère nuque', 'Kickback haltère', 'Pompes prise serrée'] },
   ] },
   { id: 'pull', name: 'Haut du corps · Tirage', ex: [
-    { n: 'Tractions', s: 4, alts: ['Tirage vertical', 'Tractions assistées', 'Rowing inversé'] },
-    { n: 'Rowing barre', s: 3, alts: ['Rowing haltère un bras', 'Tirage horizontal', 'Rowing machine'] },
-    { n: 'Face pull', s: 3, alts: ['Oiseau haltères', 'Pec deck inversé', 'Tirage élastique'] },
-    { n: 'Curl biceps', s: 3, alts: ['Curl marteau', 'Curl barre EZ', 'Curl poulie'] },
+    { n: 'Tractions', s: 4, alts: ['Tirage vertical', 'Tractions assistées', 'Rowing inversé', 'Rowing sous une table'] },
+    { n: 'Rowing barre', s: 3, alts: ['Rowing haltère un bras', 'Tirage horizontal', 'Rowing machine', 'Rowing élastique', 'Superman'] },
+    { n: 'Face pull', s: 3, alts: ['Oiseau haltères', 'Pec deck inversé', 'Tirage élastique', 'Y-T-W au sol'] },
+    { n: 'Curl biceps', s: 3, alts: ['Curl marteau', 'Curl barre EZ', 'Curl poulie', 'Curl élastique'] },
   ] },
   { id: 'full', name: 'Full body', ex: [
-    { n: 'Soulevé de terre', s: 4, alts: ['Soulevé de terre trap bar', 'Soulevé de terre roumain haltères', 'Hip thrust'] },
+    { n: 'Soulevé de terre', s: 4, alts: ['Soulevé de terre trap bar', 'Soulevé de terre roumain haltères', 'Hip thrust', 'Pont fessier'] },
     { n: 'Pompes', s: 3, alts: ['Développé couché haltères', 'Pompes sur les genoux', 'Presse pectoraux'] },
-    { n: 'Goblet squat', s: 3, alts: ['Presse à cuisses', 'Squat', 'Fentes marchées'] },
+    { n: 'Goblet squat', s: 3, alts: ['Presse à cuisses', 'Squat', 'Fentes marchées', 'Squat au poids du corps'] },
     { n: 'Gainage latéral', s: 3, alts: ['Pallof press', 'Rotation russe', 'Dead bug'] },
   ] },
 ];
@@ -135,7 +196,17 @@ export function currentTarget(db, name) {
   return { kg: p.kg ?? e.kg ?? 0, reps: p.reps ?? e.reps ?? 0, sec: p.sec ?? e.sec ?? 0 };
 }
 
-export const slotName = (db, slot, overrides = {}) => overrides[slot.n] || (db.swaps && db.swaps[slot.n]) || slot.n;
+/**
+ * Exercice retenu pour une case du programme : ton remplacement s'il existe, sinon l'exercice d'origine.
+ * S'il n'est pas faisable avec ton matériel, on prend la première alternative faisable (et pas déjà dans la séance).
+ */
+export function slotName(db, slot, overrides = {}, used = null) {
+  if (overrides[slot.n]) return overrides[slot.n];
+  const wanted = (db.swaps && db.swaps[slot.n]) || slot.n;
+  const free = n => !used || !used.has(n);
+  if (feasible(db, wanted) && free(wanted)) return wanted;
+  return [slot.n, ...slot.alts].find(n => feasible(db, n) && free(n)) || wanted;
+}
 
 export const RATINGS = [
   { id: 'facile', label: 'Facile' },
@@ -159,6 +230,7 @@ export function nextTarget(name, entry, prev) {
   if (r === 'facile') dir = 1;
   else if (r === 'bien' && same && (prev.rating === 'bien' || prev.rating === 'facile')) dir = 1;
   else if (r === 'dur' && same && prev.rating === 'dur') dir = -1;
+  if (entry.miss && dir > 0) dir = 0; // des répétitions ont manqué : on ne monte pas
   if (e.kind === 'kg') return { dir, kg: roundKg(entry.kg + dir * progressStep(name)) };
   if (e.kind === 'bw') return { dir, reps: Math.max(3, entry.reps + dir * (r === 'facile' ? 2 : 1)) };
   return { dir, sec: Math.max(15, entry.sec + dir * (r === 'facile' ? 10 : 5)) };
@@ -223,18 +295,23 @@ export function exerciseEntry(db, slot, name, goal, d) {
     sec: info.kind === 'sec' ? t.sec : 0,
     kg: info.kind === 'kg' ? t.kg : 0,
     heavy: !!info.heavy, per: !!info.per, side: !!info.side, gear: info.gear || '',
+    rest: (db.progress && db.progress[name] && db.progress[name].rest) || 0, // repos choisi pour cet exercice (0 = automatique)
+    nogear: !feasible(db, name),
     alts: [slot.n, ...slot.alts],
   };
 }
 
-/** Construit la séance selon l'objectif et le bilan (steps de -4 à +4). */
-export function buildPlan(session, goal, steps, db, overrides = {}) {
+/** Construit la séance selon l'objectif et le bilan (steps de -4 à +4). opts.express : version courte, ~20 min. */
+export function buildPlan(session, goal, steps, db, overrides = {}, opts = {}) {
   const G = GOALS[goal] || GOALS.maintien;
-  const ex = session.ex.map((slot, i) => {
+  const used = new Set();
+  let ex = session.ex.map((slot, i) => {
     let d = 0;
     if (steps > 0 && (goal === 'prise' ? i < steps : steps >= 2 && i < 2)) d = 1;
     if (steps < 0 && ((steps <= -2 && i > 0) || (steps <= -4 && i === 0))) d = -1;
-    return exerciseEntry(db, slot, slotName(db, slot, overrides), goal, d);
+    const name = slotName(db, slot, overrides, used);
+    used.add(name);
+    return exerciseEntry(db, slot, name, goal, d);
   });
   const finBase = G.fin;
   let fin = finBase;
@@ -243,13 +320,24 @@ export function buildPlan(session, goal, steps, db, overrides = {}) {
   let rest = 90;
   if (steps >= 3 && goal !== 'prise') rest = 60;
   if (steps < 0) rest = 120;
-  const sets = ex.reduce((a, e) => a + e.sets, 0);
-  const minutes = Math.round(WARM + (sets * (45 + rest)) / 60 + fin);
+  if (opts.express) {
+    // l'essentiel : les 3 premiers exercices, moins de séries, repos courts, pas de cardio final
+    ex = ex.slice(0, 3).map((e, i) => ({ ...e, sets: i === 0 ? 3 : 2, d: 0 }));
+    fin = 0;
+    rest = 60;
+  }
+  const restOf = e => (opts.express ? rest : e.rest || rest);
+  const work = ex.reduce((a, e) => a + e.sets * (45 + restOf(e)), 0);
+  const minutes = Math.round(WARM + work / 60 + fin);
   return {
-    session: { id: session.id, name: session.name }, goal, steps, pct: steps * STEP_PCT, ex, fin, finBase, rest, minutes,
+    session: { id: session.id, name: session.name + (opts.express ? ' · express' : '') }, goal, steps, pct: steps * STEP_PCT, ex, fin, finBase, rest, minutes,
+    express: !!opts.express,
     added: ex.filter(e => e.d > 0).length, removed: ex.filter(e => e.d < 0).length,
   };
 }
+
+/** Repos après une série de cet exercice : ton réglage, sinon celui de la séance. */
+export const restFor = (plan, e) => (plan.express ? plan.rest : (e && e.rest) || plan.rest);
 
 export function planKcal(plan, weightKg) {
   const strengthMin = plan.minutes - plan.fin - WARM;

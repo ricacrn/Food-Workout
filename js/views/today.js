@@ -3,7 +3,7 @@ import { getDay } from '../lib/store.js';
 import { GOALS, MEALS, targetFor, macroTargets, dayTotals, kcalOf } from '../lib/nutrition.js';
 import { balance, currentSession, buildPlan, nextTrainingDay, summary, planKcal } from '../lib/program.js';
 import { todayKey, addDays, longLabel, relativeDay } from '../lib/dates.js';
-import { fmt, sg, pctTxt, Icon, BarcodeGlyph, Ring, Sheet, Stepper, Kicker, Seg } from '../ui.js';
+import { fmt, sg, pctTxt, Icon, BarcodeGlyph, Ring, Sheet, Stepper, Kicker, Seg, LoadControl, Sparkline } from '../ui.js';
 
 function SourceThumb({ src }) {
   return html`<div class="thumb">
@@ -56,6 +56,36 @@ function EditEntry({ entry, onSave, onDelete, onClose }) {
   </${Sheet}>`;
 }
 
+const kgTxt = v => String(Math.round(v * 10) / 10).replace('.', ',');
+
+function WeightSheet({ db, actions, onClose }) {
+  const [kg, setKg] = useState(db.profile.weight);
+  return html`<${Sheet} onClose=${onClose} title="Me peser">
+    <div>
+      <div class="sheet-title">Ton poids aujourd’hui</div>
+      <div class="muted small">Une pesée par semaine suffit, le matin à jeun. Ta cible de calories se recalcule.</div>
+    </div>
+    <${LoadControl} value=${kg} step=${0.5} steps=${[0.1, 0.5, 1]} fine onChange=${v => setKg(Math.max(35, Math.min(250, Math.round(v * 10) / 10)))} onStep=${() => {}} />
+    <button class="btn btn-dark wide" onClick=${() => { actions.addWeight(kg); onClose(); }}>Enregistrer ${kgTxt(kg)} kg</button>
+  </${Sheet}>`;
+}
+
+function WeightCard({ db, tk, onOpen }) {
+  const w = db.weights;
+  const last = w[w.length - 1];
+  const first = w[0];
+  const days = last ? Math.round((new Date(tk) - new Date(last.date)) / 86400000) : null;
+  const due = !last || days >= 7;
+  const delta = last && first && w.length > 1 ? last.kg - first.kg : 0;
+  return html`<button class=${`card weight ${due ? 'due' : ''}`} onClick=${onOpen}>
+    <div class="plan-txt">
+      <div class="strong">${last ? `${kgTxt(last.kg)} kg` : 'Suivi du poids'}${delta ? html` <span class=${`small ${delta < 0 ? 'blue' : 'accent'}`}>${delta > 0 ? '+' : '−'}${kgTxt(Math.abs(delta))} kg depuis le début</span>` : ''}</div>
+      <div class="muted small">${!last ? 'Pèse-toi une fois par semaine : ta cible de calories suivra.' : due ? 'C’est le moment de ta pesée de la semaine' : `Pesée ${relativeDay(last.date, tk).toLowerCase()} · prochaine dans ${7 - days} j`}</div>
+    </div>
+    ${w.length > 1 ? html`<span class="accent"><${Sparkline} values=${w.slice(-12).map(x => x.kg)} /></span>` : html`<span class="chip">Me peser</span>`}
+  </button>`;
+}
+
 export function Today({ db, ui, actions }) {
   const tk = todayKey();
   const k = ui.date || tk;
@@ -70,6 +100,7 @@ export function Today({ db, ui, actions }) {
   const mt = macroTargets(p);
   const [open, setOpen] = useState({});
   const [editing, setEditing] = useState(null);
+  const [weighing, setWeighing] = useState(false);
   const L = isToday ? linkCard(db) : null;
   const linkStyle = L && { up: 'link-up', down: 'link-down', even: 'link-even' }[L.kind];
 
@@ -169,6 +200,12 @@ export function Today({ db, ui, actions }) {
       <button class="meal-empty" onClick=${() => actions.openActivity()}><span>Ajouter une activité</span><span class="add-plus"><${Icon} name="plus" size=${18} /></span></button>
     </section>
 
+    ${isToday && html`<section class="stack">
+      <div class="section-head"><h2>Poids</h2></div>
+      <${WeightCard} db=${db} tk=${tk} onOpen=${() => setWeighing(true)} />
+    </section>`}
+
+    ${weighing && html`<${WeightSheet} db=${db} actions=${actions} onClose=${() => setWeighing(false)} />`}
     ${editing && html`<${EditEntry} entry=${editing} onClose=${() => setEditing(null)}
       onDelete=${() => { actions.removeEntry(k, editing.id); setEditing(null); }}
       onSave=${patch => { actions.updateEntry(k, editing.id, patch); setEditing(null); }} />`}

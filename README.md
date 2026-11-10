@@ -17,6 +17,12 @@ Webapp (PWA) qui mêle nourriture et sport : tu notes ce que tu manges, et ton p
   - Un cran vaut 2,5 kg sur les exercices lourds et 1 kg sur les autres. L'évolution de chaque exercice est visible dans Entraînement.
 - **Réglage de la charge** : les boutons − / + avancent selon le pas choisi (1 · 2,5 · 5 · 10 kg sur les exercices lourds, 0,5 · 1 · 2,5 kg sur les autres). Tu peux aussi taper la valeur directement.
 - **Exercices de remplacement** : chaque exercice propose 3 ou 4 alternatives (machine, haltères, sans matériel). Tu les choisis pour la séance du jour seulement, ou pour toujours.
+- **Idées de repas** : 3 idées par repas, ajustées aux calories qu'il te reste, avec ingrédients et étapes. « Je l'ai mangé » note le plat ; avec la clé API, une recette sur mesure à partir de ce que tu as dans le frigo.
+- **Semaine et liste de courses** : planifie tes repas sur 7 jours ; la liste de courses s'additionne toute seule, rangée par rayon, et se partage.
+- **Repas rapides** : repas habituels, « Comme hier », assiettes types de cantine ou de restaurant.
+- **Mon matériel** : coche ce qui existe dans ta salle (et à la maison) ; le programme ne propose que des exercices faisables. Un remplacement est retenu pour les séances suivantes.
+- **Séance** : version express de 20 min, répétitions réellement faites, repos réglable et note par exercice, records.
+- **Suivi du poids** : une pesée par semaine recalcule ta cible de calories.
 - **Activités** : tennis, Body Pump, course… Les calories sont estimées, ou tu saisis la valeur affichée par ta montre.
 - **Sans serveur** : tout reste sur ton téléphone. Une sauvegarde peut être exportée et importée depuis Réglages.
 
@@ -62,8 +68,8 @@ Le code-barres (Open Food Facts) et la saisie texte (table interne) sont gratuit
 ## 4. Publier une mise à jour
 
 1. Modifie ou remplace les fichiers dans le dépôt GitHub (bouton **Add file › Upload files**).
-2. Dans `sw.js`, augmente `VERSION`, par exemple `v1.0.1`. Ainsi, les téléphones récupèrent la nouvelle version au lieu de garder l'ancienne en cache.
-3. Sur l'iPhone, ferme l'app et rouvre-la. Recommence une fois si besoin.
+2. Augmente `VERSION` dans `sw.js` et `APP_VERSION` dans `js/lib/version.js` (le numéro affiché en bas des Réglages).
+3. L'app se met à jour toute seule à sa prochaine ouverture (elle se recharge une fois). Si rien ne change, ferme-la et rouvre-la.
 
 ## Structure
 
@@ -92,6 +98,9 @@ Aucune étape de compilation : les fichiers sont servis tels quels.
 - **Règle d'adaptation** : `STEP_KCAL` (250), `STEP_PCT` (5) et `MAX_STEPS` (4) dans `js/lib/program.js`.
 - **Écart calorique par objectif** : `GOALS` dans `js/lib/nutrition.js` (−400 / 0 / +300 kcal).
 - **Aliments reconnus en texte** : tableau `RAW` dans `js/lib/foods.js`, avec une ligne par aliment.
+- **Recettes** : tableau `RAW` dans `js/lib/recipes.js` (ingrédients en grammes, les calories se calculent toutes seules).
+- **Assiettes de cantine** : `PLATES` dans `js/lib/foods.js`.
+- **Matériel demandé par exercice** : `NEED` dans `js/lib/program.js`.
 
 ## Pour la suite
 

@@ -492,3 +492,32 @@ img { display: block; max-width: 100%; }
   .seg button { font-size: 13px; padding: 0 4px; line-height: 1.15; }
   .wk-buttons .btn { padding: 0 10px; font-size: 15px; }
 }
+
+/* ── v1.3 ── */
+.chip.gear { display: inline-flex; align-items: center; gap: 6px; height: 40px; background: var(--card); box-shadow: inset 0 0 0 1.5px rgba(31, 27, 23, .12); }
+.chip.gear.on { background: var(--ink); color: var(--card); box-shadow: none; }
+.session-opts { display: flex; flex-wrap: wrap; gap: 8px; padding-top: 12px; border-top: 1px solid var(--line); margin-top: 10px; }
+.link { color: var(--accent); font-weight: 600; text-decoration: underline; min-height: 28px; }
+.weight { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; padding: 14px 16px; }
+.weight .plan-txt { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+.weight.due { box-shadow: inset 0 0 0 1.5px var(--accent); }
+.weight .chip { background: var(--ink); color: var(--card); flex: none; display: inline-flex; align-items: center; }
+.shop-ico.green { background: #E4EDE0; color: var(--green); }
+.idea.planned { box-shadow: inset 0 0 0 1.5px var(--blue); }
+.plan-day { padding: 2px 6px 2px 16px; }
+.plan-slot { display: flex; align-items: center; border-bottom: 1px solid var(--line); }
+.plan-slot:last-child { border-bottom: none; }
+.plan-slot-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; text-align: left; padding: 10px 0; min-height: 54px; justify-content: center; }
+.alt.on { box-shadow: inset 0 0 0 1.5px var(--ink); }
+.wk-reps { display: flex; align-items: center; justify-content: center; gap: 18px; }
+.wk-reps > button { width: 48px; height: 48px; border-radius: 50%; background: rgba(255, 255, 255, .1); color: #F2F5EE; font-size: 24px; font-weight: 600; flex: none; }
+.wk-note { margin-top: 4px; padding: 6px 12px; border-radius: 10px; background: rgba(255, 255, 255, .1); font-size: 13px; max-width: 320px; }
+.tag.rec { background: #E4EDE0; color: var(--green); vertical-align: middle; }
+.sheet > * { flex: none; }
+@media (max-height: 620px) {
+  .wk-big { font-size: 56px; }
+  .wk-center > .tiny { display: none; }
+  .wk-title { font-size: 24px; }
+  .wk-reps > button { width: 42px; height: 42px; }
+  .workout { gap: 10px; }
+}

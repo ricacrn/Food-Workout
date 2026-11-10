@@ -2,13 +2,14 @@ import { html, useState, useEffect, useRef } from '../../vendor/preact-htm.js';
 import { GOALS, dayTotals } from '../lib/nutrition.js';
 import {
   WARM, sequence, blocks, specOf, metKcal, nextTrainingDay, exInfo, currentTarget,
-  stepChoices, defaultStep, RATINGS, fmtKg, isStale,
+  stepChoices, defaultStep, RATINGS, fmtKg, isStale, buildPlan, planKcal, currentSession, feasible, restFor, PLACES, defaultGear,
 } from '../lib/program.js';
 import { todayKey, addDays, mondayOf, weekday, dayNum, DAY_LETTER, DAY_SHORT, relativeDay } from '../lib/dates.js';
 import { getDay } from '../lib/store.js';
 import { fmt, sg, pctTxt, adjShort, fmtClock, Icon, Kicker, Sheet, Seg, Stepper, LoadControl, Sparkline } from '../ui.js';
 import { linkCard } from './today.js';
 import { beep } from '../lib/sound.js';
+import { GearSheet } from './gear.js';
 
 const ratingName = id => (RATINGS.find(r => r.id === id) || RATINGS[1]).label;
 
@@ -38,6 +39,8 @@ export function ExerciseSheet({ db, name, slot, alts, scope, actions, onClose })
   // Par défaut le remplacement est retenu : pratique quand la machine n'existe pas dans ta salle.
   const [mode, setMode] = useState('always');
   const others = (alts || []).filter(a => a !== name);
+  const best = info.kind === 'kg' && (p.hist || []).length ? Math.max(...p.hist.map(h => h.kg || 0)) : 0;
+  const [note, setNote] = useState(p.note || '');
 
   return html`<${Sheet} onClose=${onClose} title=${name}>
     <div>
@@ -67,7 +70,24 @@ export function ExerciseSheet({ db, name, slot, alts, scope, actions, onClose })
         ? `Dernière fois : ${valueLabel(info.kind, valueOf(info.kind, last))}${info.kind === 'kg' ? ` × ${last.reps}` : ''} · ${ratingName(last.rating)} · ${relativeDay(last.date)}`
         : 'Pas encore fait : règle la charge à ta première séance, l’app la retient.'}</div>
       ${values.length > 1 && html`<div class="muted small">Depuis le début : ${valueLabel(info.kind, values[0])} → ${valueLabel(info.kind, info.kind === 'kg' ? t.kg : info.kind === 'bw' ? t.reps : t.sec)}</div>`}
+      ${best > 0 && html`<div class="muted small">Ton record : <b class="green">${fmtKg(best)} kg</b></div>`}
     </div>
+
+    <div class="row-between">
+      <div>
+        <div class="strong">Repos après chaque série</div>
+        <div class="muted tiny">${p.rest ? html`Ton réglage · <button class="link" onClick=${() => actions.setTarget(name, { rest: 0 })}>revenir à l’automatique</button>` : 'Automatique (90 s en séance normale)'}</div>
+      </div>
+      <${Stepper} value=${p.rest || 90} unit="s" step=${15} label="Repos en secondes"
+        onChange=${v => actions.setTarget(name, { rest: Math.max(30, Math.min(300, v)) })} />
+    </div>
+
+    <label class="field">
+      <span class="field-label">Note (réglage de la machine, cran, rappel…)</span>
+      <span class="field-box"><input type="text" maxlength="80" placeholder="Ex : siège au cran 4" value=${note}
+        onInput=${e => setNote(e.target.value)} onBlur=${() => { if (note.trim() !== (p.note || '')) actions.setTarget(name, { note: note.trim() }); }}
+        onKeyDown=${e => { if (e.key === 'Enter') e.target.blur(); }} /></span>
+    </label>
 
     ${others.length > 0 && html`<div class="stack-s">
       <div class="field-label">Remplacer par</div>
@@ -76,7 +96,7 @@ export function ExerciseSheet({ db, name, slot, alts, scope, actions, onClose })
         ${others.map(a => html`<button key=${a} class="alt" onClick=${() => { actions.swap(slot, a, scope === 'workout' ? mode : 'always'); onClose(); }}>
           <div class="alt-txt">
             <div class="strong">${a}${a === slot ? html` <span class="muted small">· d’origine</span>` : ''}</div>
-            <div class="muted small">${exInfo(a).gear}</div>
+            <div class="muted small">${exInfo(a).gear}${feasible(db, a) ? '' : html` · <span class="accent">pas dans ton matériel</span>`}</div>
           </div>
           <${Icon} name="right" size=${18} />
         </button>`)}
@@ -92,22 +112,27 @@ function row(name, spec, tag, dir, muted, ex) {
 
 export function planRows(plan) {
   const rows = [row('Échauffement', `${WARM} min · mobilité et cardio léger`)];
-  plan.ex.forEach(e => rows.push(row(e.name, specOf(e) + (e.name !== e.slot ? ` · remplace ${e.slot}` : ''), e.d > 0 ? '+1 série' : e.d < 0 ? '−1 série' : '', e.d, false, e)));
+  plan.ex.forEach(e => rows.push(row(e.name, specOf(e) + (e.name !== e.slot ? ` · remplace ${e.slot}` : '') + (e.nogear ? ' · matériel manquant' : ''), e.d > 0 ? '+1 série' : e.d < 0 ? '−1 série' : '', e.d, false, e)));
   if (plan.fin || plan.finBase) {
     const tag = plan.fin > plan.finBase ? (plan.finBase ? `+${plan.fin - plan.finBase} min` : 'ajouté') : plan.fin < plan.finBase ? 'retiré' : '';
     rows.push(row('Cardio final', plan.fin ? `${plan.fin} min · vélo ou rameur` : 'retiré pour cette séance', tag, Math.sign(plan.fin - plan.finBase), !plan.fin));
   }
-  rows.push(row('Repos entre les séries', `${plan.rest} s`, plan.rest < 90 ? '−30 s' : plan.rest > 90 ? '+30 s' : '', plan.rest < 90 ? 1 : -1));
+  rows.push(row('Repos entre les séries', `${plan.rest} s${!plan.express && plan.ex.some(e => e.rest) ? ' · sauf tes réglages par exercice' : ''}`, plan.rest < 90 ? '−30 s' : plan.rest > 90 ? '+30 s' : '', plan.rest < 90 ? 1 : -1));
   return rows;
 }
 
 export function Train({ db, actions }) {
   const tk = todayKey();
   const L = linkCard(db);
-  const { B, plan, kind } = L;
+  const { B, kind } = L;
   const p = db.profile;
   const G = GOALS[p.goal];
   const [sheet, setSheet] = useState(null);
+  const [express, setExpress] = useState(false);
+  const [gearOpen, setGearOpen] = useState(false);
+  const plan = express ? buildPlan(currentSession(db), p.goal, B.steps, db, {}, { express: true }) : L.plan;
+  const kcal = express ? planKcal(plan, p.weight) : L.kcal;
+  const place = (PLACES.find(x => x.id === (db.gear || defaultGear()).active) || PLACES[0]).label;
   const nextK = nextTrainingDay(db, tk);
   const mon = mondayOf(tk);
   const week = [0, 1, 2, 3, 4, 5, 6].map(i => {
@@ -181,7 +206,7 @@ export function Train({ db, actions }) {
     <section class="card session">
       <div class="row-between start">
         <div>
-          <${Kicker}>${relativeDay(nextK, tk)} · ${plan.minutes} min · ≈ ${fmt(L.kcal)} kcal</${Kicker}>
+          <${Kicker}>${relativeDay(nextK, tk)} · ${plan.minutes} min · ≈ ${fmt(kcal)} kcal</${Kicker}>
           <div class="session-name">${plan.session.name}</div>
         </div>
         <div class=${`adj-chip ${kind}`}>${adjShort(B.pct)}</div>
@@ -202,7 +227,11 @@ export function Train({ db, actions }) {
             </div>
             ${r.tag && html`<div class=${`tag ${r.dir > 0 ? 'up' : 'down'}`}>${r.tag}</div>`}
           </div>`)}
-      <div class="muted tiny session-hint">Touche un exercice pour régler sa charge ou le remplacer.</div>
+      <div class="muted tiny session-hint">Touche un exercice pour régler sa charge, son repos, ou le remplacer.</div>
+      <div class="session-opts">
+        <button class="chip" onClick=${() => setGearOpen(true)}>Lieu : ${place}</button>
+        <button class=${`chip ${express ? 'on' : ''}`} role="switch" aria-checked=${express} onClick=${() => setExpress(!express)}>${express ? 'Express 20 min · activé' : 'Je n’ai que 20 min'}</button>
+      </div>
     </section>
 
     ${kind === 'down' && html`<div class="nudge">Il te manque de l’énergie pour bien récupérer : ajoute une collation riche en protéines (~${L.snack} kcal) avant la séance.</div>`}
@@ -242,6 +271,7 @@ export function Train({ db, actions }) {
     <div class="muted tiny foot">Calories estimées à partir de ton poids (méthode MET). L’Apple Watch pourra les remplacer par des mesures réelles.</div>
 
     ${sheet && html`<${ExerciseSheet} db=${db} name=${sheet.name} slot=${sheet.slot} alts=${sheet.alts} scope="plan" actions=${actions} onClose=${() => setSheet(null)} />`}
+    ${gearOpen && html`<${GearSheet} db=${db} actions=${actions} onClose=${() => setGearOpen(false)} />`}
   </div>`;
 }
 
@@ -249,6 +279,7 @@ export function Workout({ db, actions }) {
   const w = db.workout;
   const [now, setNow] = useState(Date.now());
   const [sheet, setSheet] = useState(null);
+  const [adj, setAdj] = useState({ step: -1, v: 0 }); // répétitions réellement faites sur la série en cours
   const lastAuto = useRef(w ? w.autoAt : null);
   useEffect(() => {
     const t = setInterval(() => { setNow(Date.now()); actions.workoutTick(); }, 500);
@@ -274,6 +305,10 @@ export function Workout({ db, actions }) {
   const prev = w.step > 0 ? seq[w.step - 1] : null;
   const justFinished = w.phase === 'rest' && prev && prev.kind === 'set' && prev.i === prev.n ? prev.name : null;
   const last = exo ? lastTime(db, exo.name) : null;
+  const countable = w.phase === 'work' && exo && exo.kind !== 'sec';
+  const repsDone = countable ? (adj.step === w.step ? adj.v : exo.reps) : null;
+  const setReps = v => setAdj({ step: w.step, v: Math.max(0, Math.min(exo.reps + 10, v)) });
+  const note = exo && db.progress[exo.name] && db.progress[exo.name].note;
 
   let heading, sub, big, bigLabel, primary;
   if (w.phase === 'rest') {
@@ -282,8 +317,9 @@ export function Workout({ db, actions }) {
     big = fmtClock(left); bigLabel = 'de récupération'; primary = 'Passer le repos';
   } else if (cur.kind === 'set') {
     heading = cur.name; sub = `Série ${cur.i} sur ${cur.n}`;
-    big = exo.kind === 'sec' ? String(exo.sec) : String(exo.reps);
+    big = exo.kind === 'sec' ? String(exo.sec) : String(repsDone);
     bigLabel = exo.kind === 'sec' ? `secondes${exo.side ? ' par côté' : ''}` : exo.kind === 'bw' ? `répétitions${exo.side ? ' par jambe' : ''} · poids du corps` : `répétitions${exo.per ? ' · charge par main' : ''}`;
+    if (countable && repsDone !== exo.reps) bigLabel = `répétitions faites · ${exo.reps} prévues`;
     primary = 'Série terminée';
   } else {
     heading = cur.name; sub = cur.sub; big = fmtClock(left); bigLabel = 'restantes'; primary = 'Passer';
@@ -332,8 +368,15 @@ export function Workout({ db, actions }) {
     </div>
 
     <div class="wk-center">
-      <div class="wk-big">${big}</div>
+      ${countable
+        ? html`<div class="wk-reps">
+            <button aria-label="Une répétition de moins" onClick=${() => setReps(repsDone - 1)}>−</button>
+            <div class="wk-big">${big}</div>
+            <button aria-label="Une répétition de plus" onClick=${() => setReps(repsDone + 1)}>+</button>
+          </div>`
+        : html`<div class="wk-big">${big}</div>`}
       <div class="dim">${bigLabel}</div>
+      ${w.phase === 'work' && note && html`<div class="wk-note">${note}</div>`}
 
       ${justFinished && html`<div class="rate">
         <div class="small">${justFinished} terminé : c’était comment ?</div>
@@ -362,7 +405,7 @@ export function Workout({ db, actions }) {
 
     <div class="wk-buttons">
       <button class="btn btn-outline-light" onClick=${() => actions.finishWorkout()}>Terminer</button>
-      <button class="btn btn-light" onClick=${() => actions.workoutPrimary()}>${primary}</button>
+      <button class="btn btn-light" onClick=${() => actions.workoutPrimary(countable ? repsDone : undefined)}>${primary}</button>
     </div>
 
     ${sheet && html`<${ExerciseSheet} db=${db} name=${sheet.name} slot=${sheet.slot} alts=${sheet.alts} scope="workout" actions=${actions} onClose=${() => setSheet(null)} />`}
@@ -392,11 +435,14 @@ export function Done({ db, ui, actions }) {
         const now = valueOf(x.info.kind, x.entry);
         const next = x.info.kind === 'kg' ? tg.kg : x.info.kind === 'bw' ? tg.reps : tg.sec;
         const isLast = x.p.hist[x.p.hist.length - 1] === x.entry;
+        const before = x.p.hist.slice(0, x.p.hist.indexOf(x.entry));
+        const record = x.info.kind === 'kg' && before.length > 0 && !x.entry.miss && x.entry.kg > Math.max(...before.map(h => h.kg || 0));
         return html`<div key=${x.name} class="done-ex">
           <div class="row-between base">
-            <span class="strong">${x.name}</span>
+            <span class="strong">${x.name}${record ? html` <span class="tag rec">record</span>` : ''}</span>
             <span class="small">${valueLabel(x.info.kind, now)}${isLast ? html` → <b class=${next > now ? 'green' : next < now ? 'blue' : ''}>${valueLabel(x.info.kind, next)}</b>` : ''}</span>
           </div>
+          ${x.entry.miss && html`<div class="muted tiny">Séries : ${x.entry.done.join(' · ')} répétitions sur ${x.entry.reps} prévues. On garde cette charge la prochaine fois.</div>`}
           <${Seg} small options=${RATINGS} value=${x.entry.rating} onChange=${v => actions.rateAfter(r.sid, x.name, v)} />
         </div>`;
       })}

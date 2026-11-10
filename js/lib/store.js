@@ -16,6 +16,10 @@ export const defaultDb = () => ({
   favs: [], // repas habituels
   shop: { picks: [], checked: {}, extra: [] }, // liste de courses
   myRecipes: [], // recettes sur mesure (IA)
+  plan: {}, // repas planifiés : { 'AAAA-MM-JJ': { dejeuner: idRecette, diner: idRecette } }
+  planN: 1, // nombre de personnes pour les repas planifiés
+  weights: [], // pesées : [{ date, kg }]
+  gear: { active: 'salle', salle: null, maison: ['halteres', 'elastique'] }, // matériel par lieu (null = tout)
   workout: null,
   settings: { apiKey: '', model: 'claude-sonnet-5-5' },
 });
@@ -46,6 +50,14 @@ function migrate(data) {
   db.favs = Array.isArray(db.favs) ? db.favs : [];
   db.myRecipes = Array.isArray(db.myRecipes) ? db.myRecipes : [];
   db.shop = { picks: [], checked: {}, extra: [], ...(db.shop || {}) };
+  db.plan = db.plan && typeof db.plan === 'object' ? db.plan : {};
+  // on oublie les repas planifiés des jours passés
+  const n = new Date();
+  const tk = `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(n.getDate()).padStart(2, '0')}`;
+  Object.keys(db.plan).forEach(k => { if (k < tk) delete db.plan[k]; });
+  db.planN = db.planN > 0 ? db.planN : 1;
+  db.weights = Array.isArray(db.weights) ? db.weights : [];
+  db.gear = { ...base.gear, ...(db.gear || {}) };
   return db;
 }
 

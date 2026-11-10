@@ -5,6 +5,7 @@ import { DAY_LETTER, DAY_NAMES } from '../lib/dates.js';
 import { MODELS } from '../lib/ai.js';
 import { exportFile, importFile } from '../lib/store.js';
 import { APP_VERSION } from '../lib/version.js';
+import { GearPicker } from './gear.js';
 import { SESSIONS } from '../lib/program.js';
 import { fmt, Icon, Seg, Sheet, Stepper, Kicker } from '../ui.js';
 
@@ -136,6 +137,12 @@ export function Settings({ db, actions }) {
         </span>
       </label>
       <${Choice} options=${MODELS.map(m => ({ id: m.id, label: m.label, sub: m.sub }))} value=${db.settings.model} onChange=${v => setS({ model: v })} />
+    </section>
+
+    <section class="stack">
+      <h2>Mon matériel</h2>
+      <p class="muted small">Coche ce qui existe là où tu t’entraînes : le programme ne propose que des exercices faisables.</p>
+      <${GearPicker} db=${db} actions=${actions} />
     </section>
 
     ${swaps.length > 0 && html`<section class="stack">

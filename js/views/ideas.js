@@ -1,10 +1,10 @@
 import { html, useState } from '../../vendor/preact-htm.js';
 import { MEALS, GOALS } from '../lib/nutrition.js';
-import { suggestions, scaled, totals, qtyLabel, journalItem, shopList, shopText, findRecipe, mealBudgets, fit } from '../lib/recipes.js';
+import { suggestions, scaled, totals, qtyLabel, journalItem, shopList, shopText, shopSources, findRecipe, mealBudgets, fit, allRecipes, autoPlan, PLAN_MEALS } from '../lib/recipes.js';
 import { inventRecipe } from '../lib/ai.js';
-import { todayKey } from '../lib/dates.js';
+import { todayKey, addDays, relativeDay, longLabel } from '../lib/dates.js';
 import { uid } from '../lib/store.js';
-import { fmt, Icon, Kicker, Sheet, Seg } from '../ui.js';
+import { fmt, Icon, Kicker, Sheet, Seg, cap } from '../ui.js';
 
 const line = t => `${t.kcal} kcal · ${t.p} g de protéines`;
 
@@ -125,7 +125,9 @@ export function Ideas({ db, actions }) {
   const [open, setOpen] = useState(null);
   const [custom, setCustom] = useState(false);
   const S = suggestions(db, tk, shifts);
-  const picked = new Set(db.shop.picks.map(p => p.rid));
+  const sources = shopSources(db);
+  const picked = new Set(sources.map(p => p.rid));
+  const planned = db.plan[tk] || {};
   const eaten = new Set((db.days[tk] ? db.days[tk].entries : []).map(e => e.meal));
   const mine = db.myRecipes || [];
   const openRecipe = (r, meal) => setOpen({ id: r.id, factor: r.custom ? 1 : fit(r, S[meal].budget), meal });
@@ -144,7 +146,15 @@ export function Ideas({ db, actions }) {
       <span class="shop-ico"><${Icon} name="cart" size=${20} /></span>
       <span class="plan-txt">
         <span class="strong">Liste de courses</span>
-        <span class="muted small">${picked.size ? `${picked.size} repas choisi${picked.size > 1 ? 's' : ''}` : 'Choisis des repas : la liste se remplit toute seule'}</span>
+        <span class="muted small">${sources.length ? `${sources.length} repas choisi${sources.length > 1 ? 's' : ''}` : 'Choisis des repas : la liste se remplit toute seule'}</span>
+      </span>
+      <${Icon} name="right" size=${18} />
+    </button>
+    <button class="card shop-link" onClick=${() => actions.go('plan')}>
+      <span class="shop-ico green"><${Icon} name="clock" size=${20} /></span>
+      <span class="plan-txt">
+        <span class="strong">Planifier la semaine</span>
+        <span class="muted small">Choisis tes repas des 7 prochains jours d’un coup</span>
       </span>
       <${Icon} name="right" size=${18} />
     </button>
@@ -154,6 +164,14 @@ export function Ideas({ db, actions }) {
         <h2>${m.label}</h2>
         <span class="muted small">${eaten.has(m.id) ? 'déjà noté' : `≈ ${fmt(S[m.id].budget)} kcal`}</span>
       </div>
+      ${planned[m.id] && findRecipe(db, planned[m.id]) && html`<button class="card idea planned" onClick=${() => openRecipe(findRecipe(db, planned[m.id]), m.id)}>
+        <span class="plan-txt">
+          <span class="strong">${findRecipe(db, planned[m.id]).name}</span>
+          <span class="muted small">Prévu aujourd’hui dans ta semaine</span>
+        </span>
+        <span class="tag down">prévu</span>
+        <${Icon} name="right" size=${18} />
+      </button>`}
       ${S[m.id].picks.map(p => html`<button key=${p.r.id} class="card idea" onClick=${() => setOpen({ id: p.r.id, factor: p.factor, meal: m.id })}>
         <span class="plan-txt">
           <span class="strong">${p.r.name}</span>
@@ -198,8 +216,9 @@ export function Shop({ db, actions }) {
   const [more, setMore] = useState('');
   const L = shopList(db);
   const shop = db.shop;
-  const picks = shop.picks.map(p => ({ p, r: findRecipe(db, p.rid) })).filter(x => x.r);
+  const picks = shopSources(db).map(p => ({ p, r: findRecipe(db, p.rid) })).filter(x => x.r);
   const empty = !picks.length && !shop.extra.length;
+  const unplan = p => actions.update(d => { if (d.plan[p.date]) { delete d.plan[p.date][p.meal]; if (!Object.keys(d.plan[p.date]).length) delete d.plan[p.date]; } });
 
   const share = async () => {
     const text = shopText(db);
@@ -238,13 +257,14 @@ export function Shop({ db, actions }) {
       ${picks.map(({ p, r }) => html`<div key=${p.uid} class="card pick">
         <div class="plan-txt">
           <div class="strong">${r.name}</div>
-          <button class="text-btn small danger" onClick=${() => actions.update(d => { d.shop.picks = d.shop.picks.filter(x => x.uid !== p.uid); })}>Retirer</button>
+          ${p.kind === 'plan' && html`<div class="muted small">${cap(relativeDay(p.date))} · ${p.meal === 'diner' ? 'dîner' : 'déjeuner'}</div>`}
+          <button class="text-btn small danger" onClick=${() => (p.kind === 'plan' ? unplan(p) : actions.update(d => { d.shop.picks = d.shop.picks.filter(x => x.uid !== p.uid); }))}>Retirer</button>
         </div>
-        <div class="stepper">
+        ${p.kind === 'plan' ? html`<span class="muted small">× ${p.n}</span>` : html`<div class="stepper">
           <button type="button" aria-label="Une portion de moins" disabled=${p.n <= 1} onClick=${() => actions.update(d => { const x = d.shop.picks.find(y => y.uid === p.uid); if (x) x.n = Math.max(1, x.n - 1); })}>−</button>
           <span class="stepper-val"><b>${p.n}</b></span>
           <button type="button" aria-label="Une portion de plus" disabled=${p.n >= 12} onClick=${() => actions.update(d => { const x = d.shop.picks.find(y => y.uid === p.uid); if (x) x.n = Math.min(12, x.n + 1); })}>+</button>
-        </div>
+        </div>`}
       </div>`)}
     </section>`}
 
@@ -273,9 +293,83 @@ export function Shop({ db, actions }) {
     </form>
 
     ${!empty && html`<button class="text-btn danger" onClick=${async () => {
-      if (await actions.ask({ title: 'Vider la liste de courses ?', text: 'Les repas choisis et les articles ajoutés seront retirés.', ok: 'Vider la liste', danger: true })) {
-        actions.update(d => { d.shop = { picks: [], checked: {}, extra: [] }; });
+      if (await actions.ask({ title: 'Vider la liste de courses ?', text: 'Les repas choisis, les repas planifiés et les articles ajoutés seront retirés.', ok: 'Vider la liste', danger: true })) {
+        actions.update(d => { d.shop = { picks: [], checked: {}, extra: [] }; d.plan = {}; });
       }
     }}>Vider la liste</button>`}
+  </div>`;
+}
+
+/** Planifier les repas des 7 prochains jours : la liste de courses suit. */
+export function Plan({ db, actions }) {
+  const tk = todayKey();
+  const [pick, setPick] = useState(null); // { date, meal }
+  const days = [0, 1, 2, 3, 4, 5, 6].map(i => addDays(tk, i));
+  const count = days.reduce((s, k) => s + PLAN_MEALS.filter(m => db.plan[k] && db.plan[k][m] && findRecipe(db, db.plan[k][m])).length, 0);
+  const set = (date, meal, rid) => actions.update(d => {
+    d.plan[date] = { ...(d.plan[date] || {}) };
+    if (rid) d.plan[date][meal] = rid; else delete d.plan[date][meal];
+    if (!Object.keys(d.plan[date]).length) delete d.plan[date];
+  });
+  const list = pick ? allRecipes(db).filter(r => r.meals.includes(pick.meal)) : [];
+  const current = pick && db.plan[pick.date] && db.plan[pick.date][pick.meal];
+
+  return html`<div class="screen scroll settings">
+    <header class="top">
+      <button class="pill" onClick=${() => actions.go('ideas')}><${Icon} name="left" size=${16} /> Idées</button>
+      <button class="pill" onClick=${() => actions.go('shop')}><${Icon} name="cart" size=${16} /> Courses</button>
+    </header>
+    <div>
+      <h1>Ma semaine</h1>
+      <div class="muted small">${count ? `${count} repas prévu${count > 1 ? 's' : ''} · la liste de courses est à jour` : 'Choisis tes repas : la liste de courses se remplit toute seule.'}</div>
+    </div>
+
+    <div class="card pick">
+      <div class="plan-txt"><div class="strong">Nombre de personnes</div><div class="muted small">Pour les quantités de la liste de courses</div></div>
+      <div class="stepper">
+        <button type="button" aria-label="Une personne de moins" disabled=${db.planN <= 1} onClick=${() => actions.update(d => { d.planN = Math.max(1, d.planN - 1); })}>−</button>
+        <span class="stepper-val"><b>${db.planN}</b></span>
+        <button type="button" aria-label="Une personne de plus" disabled=${db.planN >= 8} onClick=${() => actions.update(d => { d.planN = Math.min(8, d.planN + 1); })}>+</button>
+      </div>
+    </div>
+
+    <button class="btn btn-ghost wide" onClick=${() => { actions.update(d => { d.plan = autoPlan(d, tk); }); actions.notify('Dîners de la semaine proposés'); }}>
+      <${Icon} name="refresh" size=${18} /> Proposer les dîners qui manquent</button>
+
+    ${days.map(k => html`<section key=${k} class="stack">
+      <div class="section-head"><h2>${k === tk ? 'Aujourd’hui' : cap(longLabel(k))}</h2></div>
+      <div class="card plan-day">
+        ${PLAN_MEALS.map(m => {
+          const r = db.plan[k] && db.plan[k][m] ? findRecipe(db, db.plan[k][m]) : null;
+          return html`<div key=${m} class="plan-slot">
+            <button class="plan-slot-main" onClick=${() => setPick({ date: k, meal: m })}>
+              <span class="muted tiny">${m === 'diner' ? 'Dîner' : 'Déjeuner'}</span>
+              <span class=${r ? 'strong' : 'accent strong'}>${r ? r.name : 'Choisir un repas'}</span>
+            </button>
+            ${r && html`<button class="icon-btn small" aria-label=${`Retirer ${r.name}`} onClick=${() => set(k, m, null)}><${Icon} name="close" size=${14} /></button>`}
+          </div>`;
+        })}
+      </div>
+    </section>`)}
+
+    ${count > 0 && html`<button class="text-btn danger" onClick=${async () => {
+      if (await actions.ask({ title: 'Effacer la semaine ?', text: 'Tous les repas planifiés seront retirés, ainsi que leurs ingrédients dans la liste de courses.', ok: 'Effacer la semaine', danger: true })) actions.update(d => { d.plan = {}; });
+    }}>Effacer la semaine</button>`}
+
+    ${pick && html`<${Sheet} onClose=${() => setPick(null)} title="Choisir un repas">
+      <div>
+        <div class="sheet-title">${pick.meal === 'diner' ? 'Dîner' : 'Déjeuner'} · ${cap(relativeDay(pick.date, tk))}</div>
+        <div class="muted small">Touche un plat pour le prévoir.</div>
+      </div>
+      <div class="alt-list">
+        ${list.map(r => html`<button key=${r.id} class=${`alt ${current === r.id ? 'on' : ''}`} onClick=${() => { set(pick.date, pick.meal, r.id); setPick(null); }}>
+          <div class="alt-txt">
+            <div class="strong">${r.name}</div>
+            <div class="muted small">${r.min} min · ${line(totals(r.items))}</div>
+          </div>
+          ${current === r.id ? html`<${Icon} name="check" size=${18} />` : html`<${Icon} name="right" size=${18} />`}
+        </button>`)}
+      </div>
+    </${Sheet}>`}
   </div>`;
 }

@@ -1,6 +1,6 @@
 import { html, useState, useEffect, useRef } from '../../vendor/preact-htm.js';
 import { MEALS, kcalOf, macroOf } from '../lib/nutrition.js';
-import { parseText } from '../lib/foods.js';
+import { parseText, PLATES } from '../lib/foods.js';
 import { startScanner, lookupBarcode } from '../lib/scanner.js';
 import { analyzePhoto, analyzeText, fileToJpeg } from '../lib/ai.js';
 import { balance } from '../lib/program.js';
@@ -157,6 +157,13 @@ export function Capture({ db, ui, actions }) {
             onClick=${() => review({ source: 'text', items: f.items.map(i => ({ ...i })), favId: f.id, favName: f.name })}><${Icon} name="star" size=${14} /> ${f.name} · ${fmt(f.items.reduce((s, i) => s + kcalOf(i), 0))} kcal</button>`)}
         </div>
       </div>`}
+      <div class="recents">
+        <div class="kicker on-dark">Cantine, resto, à emporter</div>
+        <div class="chips">
+          ${PLATES.map(p => html`<button key=${p.name} class="chip-dark"
+            onClick=${() => review({ source: 'text', items: parseText(p.text).map(i => ({ ...i, src: 'text' })), text: p.name })}>${p.name}</button>`)}
+        </div>
+      </div>
       ${db.recents.length > 0 && html`<div class="recents">
         <div class="kicker on-dark">Récents</div>
         <div class="chips">

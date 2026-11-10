@@ -1,20 +1,21 @@
 import { html, render, useState, useEffect, useRef } from '../vendor/preact-htm.js';
 import * as store from './lib/store.js';
 import { mealForNow } from './lib/nutrition.js';
-import { sequence, metKcal, exerciseEntry, recompute, roundKg, isStale } from './lib/program.js';
+import { sequence, metKcal, exerciseEntry, recompute, roundKg, isStale, restFor } from './lib/program.js';
+import { targetFor } from './lib/nutrition.js';
 import { todayKey, hhmm } from './lib/dates.js';
 import { unlockAudio, keepAwake } from './lib/sound.js';
 import { Icon, ConfirmSheet } from './ui.js';
 import { Today } from './views/today.js';
 import { Capture, Review } from './views/add.js';
 import { Train, Workout, Done } from './views/train.js';
-import { Ideas, Shop } from './views/ideas.js';
+import { Ideas, Shop, Plan } from './views/ideas.js';
 import { Onboarding, Settings, ActivitySheet } from './views/settings.js';
 
 const { uid } = store;
 
 // Écrans où l'app peut se recharger sans rien te faire perdre (mise à jour automatique).
-const SAFE = ['today', 'train', 'ideas', 'shop', 'settings'];
+const SAFE = ['today', 'train', 'ideas', 'shop', 'plan', 'settings'];
 let pendingReload = false;
 let currentScreen = 'today';
 function tryReload() {
@@ -29,12 +30,18 @@ function enterStep(w, now) {
 }
 
 // Passe à l'étape suivante. Renvoie true quand la séance est finie.
-function advance(w, now) {
+// reps = répétitions réellement faites sur la série qui se termine (sinon : celles prévues).
+function advance(w, now, reps) {
   const seq = sequence(w.plan);
   const cur = seq[w.step];
   if (cur.kind === 'set') {
+    const e = w.plan.ex[cur.ex];
     w.done = w.done || {};
     w.done[cur.name] = (w.done[cur.name] || 0) + 1;
+    if (e && e.kind !== 'sec') {
+      w.sets = w.sets || {};
+      (w.sets[cur.name] = w.sets[cur.name] || []).push(reps == null ? e.reps : reps);
+    }
   }
   if (cur.kind === 'timed' && cur.finisher) w.finSec += Math.max(0, (Math.min(now, w.phaseEnd || now) - w.phaseStart) / 1000);
   if (w.step + 1 >= seq.length) {
@@ -46,7 +53,7 @@ function advance(w, now) {
   if (cur.kind === 'set') {
     w.phase = 'rest';
     w.phaseStart = now;
-    w.phaseEnd = now + w.plan.rest * 1000;
+    w.phaseEnd = now + restFor(w.plan, w.plan.ex[cur.ex]) * 1000;
   } else {
     enterStep(w, now);
   }
@@ -157,7 +164,10 @@ function App() {
         if (!sets) return;
         const p = (d.progress[e.name] = d.progress[e.name] || {});
         p.hist = p.hist || [];
-        p.hist.push({ date: k, sid, kg: e.kg, reps: e.reps, sec: e.sec, sets, rating: (w.ratings && w.ratings[e.name]) || 'bien' });
+        const done = (w.sets && w.sets[e.name]) || null;
+        const entry = { date: k, sid, kg: e.kg, reps: e.reps, sec: e.sec, sets, rating: (w.ratings && w.ratings[e.name]) || 'bien' };
+        if (done && done.some(r => r < e.reps)) { entry.done = done; entry.miss = true; }
+        p.hist.push(entry);
         if (p.hist.length > 60) p.hist = p.hist.slice(-60);
         recompute(p, e.name);
       });
@@ -225,7 +235,7 @@ function App() {
       keepAwake(true);
       const now = Date.now();
       update(d => {
-        d.workout = { v: 2, plan, date: todayKey(), startedAt: now, lastAt: now, pausedMs: 0, step: 0, phase: 'work', phaseStart: now, phaseEnd: null, finSec: 0, preSum: B.sum, done: {}, ratings: {} };
+        d.workout = { v: 2, plan, date: todayKey(), startedAt: now, lastAt: now, pausedMs: 0, step: 0, phase: 'work', phaseStart: now, phaseEnd: null, finSec: 0, preSum: B.sum, done: {}, sets: {}, ratings: {} };
         enterStep(d.workout, now);
       });
       go('workout');
@@ -242,7 +252,7 @@ function App() {
       store.save(next);
       return next;
     }),
-    workoutPrimary: () => {
+    workoutPrimary: reps => {
       const w = db.workout;
       if (!w) return;
       unlockAudio(); // réactive le son après une reprise de séance
@@ -251,7 +261,7 @@ function App() {
       nw.lastAt = now;
       if (nw.phase === 'rest') {
         enterStep(nw, now);
-      } else if (advance(nw, now)) {
+      } else if (advance(nw, now, reps)) {
         finishWorkout(nw);
         return;
       }
@@ -296,6 +306,17 @@ function App() {
       d.progress[name] = { ...(d.progress[name] || {}), ...patch };
       if (d.workout) d.workout.plan.ex.forEach(e => { if (e.name === name) Object.assign(e, patch); });
     }),
+    // Pesée : garde l'historique et met à jour le poids du profil (donc la cible de calories).
+    addWeight: kg => {
+      const before = targetFor(db.profile);
+      const k = todayKey();
+      update(d => {
+        d.weights = [...d.weights.filter(w => w.date !== k), { date: k, kg }].sort((a, b) => (a.date < b.date ? -1 : 1)).slice(-400);
+        d.profile.weight = kg;
+      });
+      const after = targetFor({ ...db.profile, weight: kg });
+      notify(after !== before ? `Poids noté · ta cible passe à ${String(after).replace(/\B(?=(\d{3})+(?!\d))/g, ' ')} kcal par jour` : 'Poids noté');
+    },
     setStep: (name, step) => update(d => { d.progress[name] = { ...(d.progress[name] || {}), step }; }),
     swap: (slot, name, mode) => {
       update(d => {
@@ -356,6 +377,7 @@ function App() {
     ${s === 'train' && html`<${Train} db=${db} ui=${ui} actions=${actions} />`}
     ${s === 'ideas' && html`<${Ideas} db=${db} ui=${ui} actions=${actions} />`}
     ${s === 'shop' && html`<${Shop} db=${db} ui=${ui} actions=${actions} />`}
+    ${s === 'plan' && html`<${Plan} db=${db} ui=${ui} actions=${actions} />`}
     ${s === 'settings' && html`<${Settings} db=${db} ui=${ui} actions=${actions} />`}
     ${s === 'add' && html`<${Capture} db=${db} ui=${ui} actions=${actions} />`}
     ${s === 'review' && html`<${Review} db=${db} ui=${ui} actions=${actions} />`}

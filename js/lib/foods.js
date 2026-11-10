@@ -44,6 +44,23 @@ const RAW = [
   [['salade composee'], 'Salade composée', 120, 5, 10, 7, 300],
   [['soupe', 'veloute'], 'Soupe de légumes', 40, 1.2, 6, 1.2, 300, { ml: true }],
   [['ratatouille'], 'Ratatouille', 50, 1.2, 6, 2.5, 200],
+  [['kebab'], 'Kebab', 215, 11, 20, 10, 350, { unit: 350 }],
+  [['tacos'], 'Tacos garni', 230, 11, 22, 11, 400, { unit: 400 }],
+  [['poke', 'poke bowl'], 'Poke bowl', 130, 7, 16, 4, 400],
+  [['salade cesar'], 'Salade César', 150, 9, 6, 10, 300],
+  [['croque monsieur', 'croque-monsieur', 'croque'], 'Croque-monsieur', 270, 14, 22, 14, 150, { unit: 150 }],
+  [['pad thai'], 'Pad thaï', 160, 7, 20, 6, 350],
+  [['ramen'], 'Ramen', 90, 5, 10, 3, 500],
+  [['bo bun', 'bobun'], 'Bo bun', 110, 6, 14, 3, 450],
+  [['couscous royal', 'couscous complet'], 'Couscous garni', 150, 9, 16, 5.5, 450],
+  [['paella'], 'Paella', 150, 9, 18, 5, 350],
+  [['risotto'], 'Risotto', 150, 4, 22, 5, 300],
+  [['nem', 'nems'], 'Nems', 240, 7, 25, 12, 120, { unit: 40 }],
+  [['panini'], 'Panini', 260, 11, 30, 10, 220, { unit: 220 }],
+  [['hot dog', 'hot-dog', 'hotdog'], 'Hot-dog', 250, 10, 22, 13, 150, { unit: 150 }],
+  [['nugget', 'nuggets'], 'Nuggets de poulet', 270, 15, 18, 15, 120, { unit: 20 }],
+  [['poulet roti'], 'Poulet rôti', 215, 25, 0, 13, 150],
+  [['poisson pane', 'poisson frit'], 'Poisson pané', 230, 13, 17, 12, 120],
 
   // Viandes, poissons, œufs
   [['poulet', 'blanc de poulet'], 'Poulet', 165, 31, 0, 3.6, 150],
@@ -250,3 +267,26 @@ export function parseText(txt) {
       };
     });
 }
+
+// Assiettes types quand on ne peut rien peser (cantine, restaurant, à emporter).
+// Chaque assiette est une simple phrase : elle passe par la même analyse que le mode Texte.
+export const PLATES = [
+  ['Plat du jour : viande, féculents, légumes', '150 g poulet, 200 g riz, 150 g legumes, 10 g huile'],
+  ['Plat du jour : poisson, riz, légumes', '150 g poisson, 200 g riz, 150 g legumes, 10 g huile'],
+  ['Steak-frites', '150 g steak, 200 g frites, 50 g salade'],
+  ['Poulet rôti, pommes de terre', '180 g poulet roti, 250 g pommes de terre, 100 g haricots verts'],
+  ['Pâtes bolognaise', '250 g pates, 100 g viande hachee, 100 g sauce tomate, 10 g parmesan'],
+  ['Pizza entière', '350 g pizza'],
+  ['Burger-frites', '1 burger, 150 g frites'],
+  ['Kebab', '1 kebab'],
+  ['Sushis (12 pièces)', '12 sushi'],
+  ['Poke bowl', '400 g poke'],
+  ['Salade César', '300 g salade cesar, 40 g pain'],
+  ['Sandwich jambon-beurre', '200 g sandwich'],
+  ['Ramen', '500 g ramen'],
+  ['Bo bun', '450 g bo bun'],
+  ['Couscous garni', '450 g couscous royal'],
+  ['Entrée de crudités', '150 g legumes, 15 g vinaigrette'],
+  ['Dessert : part de gâteau', '100 g gateau'],
+  ['Dessert : yaourt et fruit', '1 yaourt, 1 pomme'],
+].map(([name, text]) => ({ name, text }));
