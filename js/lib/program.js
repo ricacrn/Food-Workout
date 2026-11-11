@@ -82,46 +82,118 @@ export const EXERCISES = {
   'Superman': { kind: 'bw', reps: 15, gear: 'Sans matériel' },
   'Y-T-W au sol': { kind: 'bw', reps: 12, gear: 'Sans matériel' },
   'Curl élastique': { kind: 'bw', reps: 15, gear: 'Élastique' },
+  // Machines et postes supplémentaires
+  'Squat guidé': { kind: 'kg', kg: 30, heavy: true, gear: 'Smith machine' },
+  'Leg extension': { kind: 'kg', kg: 30, gear: 'Machine' },
+  'Adducteurs': { kind: 'kg', kg: 30, gear: 'Machine' },
+  'Abducteurs': { kind: 'kg', kg: 30, gear: 'Machine' },
+  'Mollets à la machine': { kind: 'kg', kg: 40, gear: 'Machine à mollets, Smith ou presse' },
+  'Mollets haltères': { kind: 'kg', kg: 12, per: true, gear: 'Haltères' },
+  'Extensions lombaires': { kind: 'bw', reps: 12, gear: 'Banc à lombaires' },
+  'Développé couché guidé': { kind: 'kg', kg: 30, heavy: true, gear: 'Smith machine + banc' },
+  'Développé incliné haltères': { kind: 'kg', kg: 12, per: true, gear: 'Haltères + banc incliné' },
+  'Développé incliné barre': { kind: 'kg', kg: 30, heavy: true, gear: 'Barre + banc incliné' },
+  'Butterfly': { kind: 'kg', kg: 25, gear: 'Machine' },
+  'Écarté à la poulie': { kind: 'kg', kg: 10, per: true, gear: 'Poulie vis-à-vis' },
+  'Écarté haltères': { kind: 'kg', kg: 8, per: true, gear: 'Haltères + banc' },
+  'Développé épaules guidé': { kind: 'kg', kg: 20, heavy: true, gear: 'Smith machine + banc' },
+  'Élévations latérales': { kind: 'kg', kg: 6, per: true, gear: 'Haltères' },
+  'Élévations latérales à la poulie': { kind: 'kg', kg: 5, gear: 'Poulie basse' },
+  'Élévations latérales élastique': { kind: 'bw', reps: 15, gear: 'Élastique' },
+  'Dips à la machine': { kind: 'kg', kg: 40, gear: 'Machine' },
+  'Extensions triceps à la machine': { kind: 'kg', kg: 25, gear: 'Machine' },
+  'Rowing aux sangles': { kind: 'bw', reps: 10, gear: 'Sangles (TRX)' },
+  'Rowing T-bar': { kind: 'kg', kg: 30, heavy: true, gear: 'T-bar' },
+  'Curl barre': { kind: 'kg', kg: 20, gear: 'Barre' },
+  'Curl au pupitre': { kind: 'kg', kg: 20, gear: 'Machine' },
+  'Curl incliné haltères': { kind: 'kg', kg: 8, per: true, gear: 'Haltères + banc incliné' },
+  'Relevés de genoux à la chaise romaine': { kind: 'bw', reps: 10, gear: 'Chaise romaine' },
+  'Relevés de jambes suspendu': { kind: 'bw', reps: 8, gear: 'Barre de traction' },
+  'Crunch': { kind: 'bw', reps: 15, gear: 'Sans matériel' },
+  'Crunch à la machine': { kind: 'kg', kg: 25, gear: 'Machine' },
+  'Crunch à la poulie': { kind: 'kg', kg: 20, gear: 'Poulie haute' },
 };
+
+// Photos de démonstration (domaine public, github.com/yuhonas/free-exercise-db) : deux images par exercice,
+// position de départ et position d'arrivée, rangées dans img/ex/.
+const IMG = {
+  "Squat": "Barbell_Squat", "Squat guidé": "Smith_Machine_Squat", "Presse à cuisses": "Leg_Press", "Hack squat": "Hack_Squat", "Goblet squat": "Goblet_Squat", "Squat au poids du corps": "Bodyweight_Squat", "Fentes bulgares": "Split_Squat_with_Dumbbells", "Fentes marchées": "Dumbbell_Lunges", "Step-up sur banc": "Dumbbell_Step_Ups", "Fentes au poids du corps": "Bodyweight_Walking_Lunge", "Soulevé de terre roumain": "Romanian_Deadlift", "Soulevé de terre roumain haltères": "Stiff-Legged_Dumbbell_Deadlift", "Hip thrust": "Barbell_Hip_Thrust", "Leg curl": "Seated_Leg_Curl", "Leg extension": "Leg_Extensions", "Adducteurs": "Thigh_Adductor", "Abducteurs": "Thigh_Abductor", "Mollets à la machine": "Standing_Calf_Raises", "Mollets haltères": "Standing_Dumbbell_Calf_Raise", "Pont fessier": "Butt_Lift_Bridge", "Soulevé de terre": "Barbell_Deadlift", "Soulevé de terre trap bar": "Trap_Bar_Deadlift", "Extensions lombaires": "Hyperextensions_Back_Extensions", "Développé couché": "Barbell_Bench_Press_-_Medium_Grip", "Développé couché haltères": "Dumbbell_Bench_Press", "Développé couché guidé": "Smith_Machine_Bench_Press", "Développé incliné haltères": "Incline_Dumbbell_Press", "Développé incliné barre": "Barbell_Incline_Bench_Press_-_Medium_Grip", "Presse pectoraux": "Machine_Bench_Press", "Butterfly": "Butterfly", "Écarté à la poulie": "Cable_Crossover", "Écarté haltères": "Dumbbell_Flyes", "Pompes": "Pushups", "Développé militaire haltères": "Dumbbell_Shoulder_Press", "Développé militaire barre": "Standing_Military_Press", "Presse épaules": "Machine_Shoulder_Military_Press", "Développé épaules guidé": "Smith_Machine_Overhead_Shoulder_Press", "Élévations latérales": "Side_Lateral_Raise", "Élévations latérales à la poulie": "Cable_Seated_Lateral_Raise", "Élévations latérales élastique": "Lateral_Raise_-_With_Bands", "Dips": "Dips_-_Triceps_Version", "Dips à la machine": "Dip_Machine", "Développé couché prise serrée": "Close-Grip_Barbell_Bench_Press", "Pompes diamant": "Push-Ups_-_Close_Triceps_Position", "Pompes prise serrée": "Push-Ups_-_Close_Triceps_Position", "Dips sur banc": "Bench_Dips", "Extensions triceps": "Triceps_Pushdown", "Extensions triceps à la machine": "Machine_Triceps_Extension", "Barre au front": "EZ-Bar_Skullcrusher", "Extension haltère nuque": "Standing_Dumbbell_Triceps_Extension", "Kickback haltère": "Tricep_Dumbbell_Kickback", "Tractions": "Pullups", "Tirage vertical": "Wide-Grip_Lat_Pulldown", "Tractions assistées": "Band_Assisted_Pull-Up", "Rowing inversé": "Inverted_Row", "Rowing aux sangles": "Suspended_Row", "Rowing sous une table": "Inverted_Row", "Rowing barre": "Bent_Over_Barbell_Row", "Rowing haltère un bras": "One-Arm_Dumbbell_Row", "Tirage horizontal": "Seated_Cable_Rows", "Rowing machine": "Leverage_Iso_Row", "Rowing T-bar": "T-Bar_Row_with_Handle", "Face pull": "Face_Pull", "Oiseau haltères": "Seated_Bent-Over_Rear_Delt_Raise", "Pec deck inversé": "Reverse_Machine_Flyes", "Tirage élastique": "Band_Pull_Apart", "Curl biceps": "Dumbbell_Bicep_Curl", "Curl marteau": "Hammer_Curls", "Curl barre EZ": "EZ-Bar_Curl", "Curl barre": "Barbell_Curl", "Curl poulie": "Standing_Biceps_Cable_Curl", "Curl au pupitre": "Machine_Preacher_Curls", "Curl incliné haltères": "Incline_Dumbbell_Curl", "Gainage": "Plank", "Gainage latéral": "Side_Bridge", "Dead bug": "Dead_Bug", "Relevés de jambes": "Flat_Bench_Lying_Leg_Raise", "Relevés de genoux à la chaise romaine": "Knee_Hip_Raise_On_Parallel_Bars", "Relevés de jambes suspendu": "Hanging_Leg_Raise", "Roue abdominale": "Ab_Roller", "Pallof press": "Pallof_Press", "Rotation russe": "Russian_Twist", "Crunch": "Crunches", "Crunch à la machine": "Ab_Crunch_Machine", "Crunch à la poulie": "Cable_Crunch", "Superman": "Superman"
+};
+const photo = id => (id ? [`./img/ex/${id}-0.jpg`, `./img/ex/${id}-1.jpg`] : null);
+/** Les deux photos d'un exercice, ou null s'il n'en a pas. */
+export const exPhotos = name => photo(IMG[name]);
 
 // ── Matériel ──────────────────────────────────────────────────────────────────
 export const EQUIPMENT = [
-  { id: 'barre', label: 'Barre et disques' },
-  { id: 'halteres', label: 'Haltères ou kettlebell' },
-  { id: 'banc', label: 'Banc' },
-  { id: 'poulie', label: 'Poulies' },
-  { id: 'traction', label: 'Barre de traction' },
-  { id: 'dips', label: 'Barres à dips' },
-  { id: 'elastique', label: 'Élastiques' },
-  { id: 'ez', label: 'Barre EZ' },
-  { id: 'trap', label: 'Trap bar' },
-  { id: 'roue', label: 'Roue abdominale' },
-  { id: 'm_presse', label: 'Presse à cuisses', machine: true },
-  { id: 'm_hack', label: 'Hack squat', machine: true },
-  { id: 'm_legcurl', label: 'Leg curl', machine: true },
-  { id: 'm_pec', label: 'Presse pectoraux', machine: true },
-  { id: 'm_epaules', label: 'Presse épaules', machine: true },
-  { id: 'm_rowing', label: 'Rowing machine', machine: true },
-  { id: 'm_pecdeck', label: 'Pec deck', machine: true },
-  { id: 'm_assist', label: 'Tractions assistées', machine: true },
-];
+  { id: 'barre', label: 'Barre et disques', img: 'Barbell_Deadlift' },
+  { id: 'rack', label: 'Cage à squat', img: 'Barbell_Squat' },
+  { id: 'smith', label: 'Smith machine (barre guidée)', img: 'Smith_Machine_Squat' },
+  { id: 'halteres', label: 'Haltères ou kettlebells', img: 'Dumbbell_Bicep_Curl' },
+  { id: 'banc', label: 'Banc plat', img: 'Dumbbell_Bench_Press' },
+  { id: 'banc_incline', label: 'Banc incliné', img: 'Incline_Dumbbell_Press' },
+  { id: 'poulie', label: 'Poulie haute et basse', img: 'Triceps_Pushdown' },
+  { id: 'crossover', label: 'Poulie vis-à-vis', img: 'Cable_Crossover' },
+  { id: 'traction', label: 'Barre de traction', img: 'Pullups' },
+  { id: 'dips', label: 'Barres à dips', img: 'Dips_-_Triceps_Version' },
+  { id: 'chaise', label: 'Chaise romaine', img: 'Knee_Hip_Raise_On_Parallel_Bars' },
+  { id: 'lombaires', label: 'Banc à lombaires', img: 'Hyperextensions_Back_Extensions' },
+  { id: 'tbar', label: 'T-bar', img: 'T-Bar_Row_with_Handle' },
+  { id: 'ez', label: 'Barre EZ', img: 'EZ-Bar_Curl' },
+  { id: 'trap', label: 'Trap bar', img: 'Trap_Bar_Deadlift' },
+  { id: 'trx', label: 'Sangles (TRX)', img: 'Suspended_Row' },
+  { id: 'elastique', label: 'Élastiques', img: 'Band_Pull_Apart' },
+  { id: 'roue', label: 'Roue abdominale', img: 'Ab_Roller' },
+  { id: 'm_presse', label: 'Presse à cuisses', group: 'machine', img: 'Leg_Press' },
+  { id: 'm_hack', label: 'Hack squat', group: 'machine', img: 'Hack_Squat' },
+  { id: 'm_legext', label: 'Leg extension', group: 'machine', img: 'Leg_Extensions' },
+  { id: 'm_legcurl', label: 'Leg curl', group: 'machine', img: 'Seated_Leg_Curl' },
+  { id: 'm_adducteurs', label: 'Adducteurs', group: 'machine', img: 'Thigh_Adductor' },
+  { id: 'm_abducteurs', label: 'Abducteurs', group: 'machine', img: 'Thigh_Abductor' },
+  { id: 'm_mollets', label: 'Mollets', group: 'machine', img: 'Standing_Calf_Raises' },
+  { id: 'm_pec', label: 'Presse pectoraux', group: 'machine', img: 'Machine_Bench_Press' },
+  { id: 'm_pecdeck', label: 'Butterfly (pec deck)', group: 'machine', img: 'Butterfly' },
+  { id: 'm_epaules', label: 'Presse épaules', group: 'machine', img: 'Machine_Shoulder_Military_Press' },
+  { id: 'm_lat', label: 'Tirage vertical', group: 'machine', img: 'Wide-Grip_Lat_Pulldown' },
+  { id: 'm_rowing', label: 'Tirage horizontal (rowing)', group: 'machine', img: 'Leverage_Iso_Row' },
+  { id: 'm_assist', label: 'Tractions assistées', group: 'machine', img: 'Band_Assisted_Pull-Up' },
+  { id: 'm_dips', label: 'Dips assis', group: 'machine', img: 'Dip_Machine' },
+  { id: 'm_triceps', label: 'Extension triceps', group: 'machine', img: 'Machine_Triceps_Extension' },
+  { id: 'm_biceps', label: 'Curl au pupitre', group: 'machine', img: 'Machine_Preacher_Curls' },
+  { id: 'm_abdos', label: 'Crunch (abdos)', group: 'machine', img: 'Ab_Crunch_Machine' },
+  { id: 'tapis', label: 'Tapis de course', group: 'cardio', img: 'Jogging_Treadmill' },
+  { id: 'velo', label: 'Vélo', group: 'cardio', img: 'Bicycling_Stationary' },
+  { id: 'rameur', label: 'Rameur', group: 'cardio', img: 'Rowing_Stationary' },
+  { id: 'elliptique', label: 'Elliptique', group: 'cardio', img: 'Elliptical_Trainer' },
+  { id: 'escalier', label: 'Escalier (stepper)', group: 'cardio', img: 'Stairmaster' },
+].map(e => ({ group: 'libre', ...e, photo: photo(e.img)[0] }));
+
+export const EQUIP_GROUPS = [{ id: 'libre', label: 'Matériel libre et postes' }, { id: 'machine', label: 'Machines guidées' }, { id: 'cardio', label: 'Cardio' }];
 
 // Matériel nécessaire : chaque ligne est une liste de solutions possibles (il en suffit d'une).
+const CABLE = [['poulie'], ['crossover']];
 const NEED = {
-  'Squat': [['barre']], 'Presse à cuisses': [['m_presse']], 'Hack squat': [['m_hack']], 'Goblet squat': [['halteres']],
+  'Squat': [['barre', 'rack']], 'Squat guidé': [['smith']], 'Presse à cuisses': [['m_presse']], 'Hack squat': [['m_hack']], 'Goblet squat': [['halteres']],
   'Fentes bulgares': [['halteres', 'banc']], 'Fentes marchées': [['halteres']], 'Step-up sur banc': [['halteres', 'banc']],
+  'Leg extension': [['m_legext']], 'Adducteurs': [['m_adducteurs']], 'Abducteurs': [['m_abducteurs']],
+  'Mollets à la machine': [['m_mollets'], ['smith'], ['m_presse']], 'Mollets haltères': [['halteres']],
   'Soulevé de terre roumain': [['barre']], 'Soulevé de terre roumain haltères': [['halteres']], 'Hip thrust': [['barre', 'banc']],
-  'Leg curl': [['m_legcurl']], 'Soulevé de terre': [['barre']], 'Soulevé de terre trap bar': [['trap']],
-  'Développé couché': [['barre', 'banc']], 'Développé couché haltères': [['halteres', 'banc']], 'Presse pectoraux': [['m_pec']],
-  'Développé militaire haltères': [['halteres']], 'Développé militaire barre': [['barre']], 'Presse épaules': [['m_epaules']],
-  'Dips': [['dips']], 'Développé couché prise serrée': [['barre', 'banc']], 'Dips sur banc': [['banc']],
-  'Extensions triceps': [['poulie']], 'Barre au front': [['ez', 'banc']], 'Extension haltère nuque': [['halteres']], 'Kickback haltère': [['halteres']],
-  'Tractions': [['traction']], 'Tirage vertical': [['poulie']], 'Tractions assistées': [['m_assist'], ['traction', 'elastique']],
-  'Rowing inversé': [['traction']], 'Rowing barre': [['barre']], 'Rowing haltère un bras': [['halteres']], 'Tirage horizontal': [['poulie']],
-  'Rowing machine': [['m_rowing']], 'Face pull': [['poulie']], 'Oiseau haltères': [['halteres']], 'Pec deck inversé': [['m_pecdeck']],
+  'Leg curl': [['m_legcurl']], 'Soulevé de terre': [['barre']], 'Soulevé de terre trap bar': [['trap']], 'Extensions lombaires': [['lombaires']],
+  'Développé couché': [['barre', 'banc']], 'Développé couché haltères': [['halteres', 'banc']], 'Développé couché guidé': [['smith', 'banc']],
+  'Développé incliné haltères': [['halteres', 'banc_incline']], 'Développé incliné barre': [['barre', 'banc_incline'], ['smith', 'banc_incline']],
+  'Presse pectoraux': [['m_pec']], 'Butterfly': [['m_pecdeck']], 'Écarté à la poulie': [['crossover']], 'Écarté haltères': [['halteres', 'banc']],
+  'Développé militaire haltères': [['halteres']], 'Développé militaire barre': [['barre']], 'Presse épaules': [['m_epaules']], 'Développé épaules guidé': [['smith', 'banc']],
+  'Élévations latérales': [['halteres']], 'Élévations latérales à la poulie': CABLE, 'Élévations latérales élastique': [['elastique']],
+  'Dips': [['dips'], ['chaise']], 'Dips à la machine': [['m_dips']], 'Développé couché prise serrée': [['barre', 'banc']], 'Dips sur banc': [['banc']],
+  'Extensions triceps': CABLE, 'Extensions triceps à la machine': [['m_triceps']], 'Barre au front': [['ez', 'banc']], 'Extension haltère nuque': [['halteres']], 'Kickback haltère': [['halteres']],
+  'Tractions': [['traction']], 'Tirage vertical': [['m_lat'], ['poulie'], ['crossover']], 'Tractions assistées': [['m_assist'], ['traction', 'elastique']],
+  'Rowing inversé': [['smith'], ['rack', 'barre'], ['traction']], 'Rowing aux sangles': [['trx']],
+  'Rowing barre': [['barre']], 'Rowing haltère un bras': [['halteres']], 'Tirage horizontal': [['poulie'], ['m_rowing']],
+  'Rowing machine': [['m_rowing']], 'Rowing T-bar': [['tbar']], 'Face pull': CABLE, 'Oiseau haltères': [['halteres']], 'Pec deck inversé': [['m_pecdeck']],
   'Tirage élastique': [['elastique']], 'Rowing élastique': [['elastique']], 'Curl élastique': [['elastique']],
-  'Curl biceps': [['halteres']], 'Curl marteau': [['halteres']], 'Curl barre EZ': [['ez']], 'Curl poulie': [['poulie']],
-  'Roue abdominale': [['roue']], 'Pallof press': [['poulie'], ['elastique']],
+  'Curl biceps': [['halteres']], 'Curl marteau': [['halteres']], 'Curl barre EZ': [['ez']], 'Curl barre': [['barre']], 'Curl poulie': CABLE,
+  'Curl au pupitre': [['m_biceps']], 'Curl incliné haltères': [['halteres', 'banc_incline']],
+  'Relevés de genoux à la chaise romaine': [['chaise']], 'Relevés de jambes suspendu': [['traction']],
+  'Roue abdominale': [['roue']], 'Pallof press': [['poulie'], ['crossover'], ['elastique']], 'Crunch à la machine': [['m_abdos']], 'Crunch à la poulie': CABLE,
 };
 
 export const PLACES = [{ id: 'salle', label: 'Ma salle' }, { id: 'maison', label: 'Maison' }];
@@ -129,6 +201,15 @@ export const defaultGear = () => ({ active: 'salle', salle: null, maison: ['halt
 
 /** Matériel du lieu actif (null = tout est disponible). */
 export const gearHas = db => { const g = db.gear || defaultGear(); return g[g.active] ?? null; };
+
+/** Ce que tu peux utiliser pour le cardio final, selon ton matériel. */
+export function cardioLabel(db) {
+  const has = gearHas(db);
+  const names = EQUIPMENT.filter(e => e.group === 'cardio' && (!has || has.includes(e.id))).map(e => e.label.toLowerCase().replace(' (stepper)', ''));
+  if (!names.length) return 'corde à sauter, montées de genoux ou marche rapide';
+  if (!has) return 'tapis, vélo ou rameur';
+  return names.length > 1 ? `${names.slice(0, -1).join(', ')} ou ${names[names.length - 1]}` : names[0];
+}
 
 /** L'exercice est-il faisable avec le matériel du lieu actif ? */
 export function feasible(db, name) {
@@ -140,32 +221,43 @@ export function feasible(db, name) {
 
 // Programme tournant (une séance après l'autre sur tes jours d'entraînement).
 // n = exercice d'origine, s = séries, alts = remplacements possibles.
+// Cases du programme : l'exercice d'origine, puis ses remplacements (du plus proche au plus simple).
+const SLOT = {
+  'Squat': ['Presse à cuisses', 'Hack squat', 'Squat guidé', 'Goblet squat', 'Squat au poids du corps'],
+  'Fentes bulgares': ['Fentes marchées', 'Step-up sur banc', 'Leg extension', 'Adducteurs', 'Abducteurs', 'Mollets à la machine', 'Mollets haltères', 'Fentes au poids du corps'],
+  'Soulevé de terre roumain': ['Soulevé de terre roumain haltères', 'Hip thrust', 'Leg curl', 'Extensions lombaires', 'Pont fessier'],
+  'Gainage': ['Dead bug', 'Relevés de jambes', 'Relevés de genoux à la chaise romaine', 'Relevés de jambes suspendu', 'Roue abdominale', 'Crunch', 'Crunch à la machine', 'Crunch à la poulie'],
+  'Développé couché': ['Développé couché haltères', 'Développé couché guidé', 'Presse pectoraux', 'Développé incliné haltères', 'Développé incliné barre', 'Pompes'],
+  'Développé militaire haltères': ['Développé militaire barre', 'Presse épaules', 'Développé épaules guidé', 'Élévations latérales', 'Pompes piquées'],
+  'Dips': ['Dips à la machine', 'Développé couché prise serrée', 'Butterfly', 'Écarté à la poulie', 'Écarté haltères', 'Pompes diamant', 'Dips sur banc'],
+  'Extensions triceps': ['Extensions triceps à la machine', 'Barre au front', 'Extension haltère nuque', 'Kickback haltère', 'Pompes prise serrée'],
+  'Tractions': ['Tirage vertical', 'Tractions assistées', 'Rowing inversé', 'Rowing aux sangles', 'Rowing sous une table'],
+  'Rowing barre': ['Rowing haltère un bras', 'Tirage horizontal', 'Rowing machine', 'Rowing T-bar', 'Rowing élastique', 'Superman'],
+  'Face pull': ['Oiseau haltères', 'Pec deck inversé', 'Tirage élastique', 'Y-T-W au sol'],
+  'Curl biceps': ['Curl marteau', 'Curl barre EZ', 'Curl barre', 'Curl poulie', 'Curl au pupitre', 'Curl incliné haltères', 'Curl élastique'],
+  'Soulevé de terre': ['Soulevé de terre trap bar', 'Soulevé de terre roumain haltères', 'Hip thrust', 'Extensions lombaires', 'Pont fessier'],
+  'Pompes': ['Développé couché haltères', 'Pompes sur les genoux', 'Presse pectoraux', 'Butterfly'],
+  'Goblet squat': ['Presse à cuisses', 'Squat', 'Squat guidé', 'Leg extension', 'Fentes marchées', 'Squat au poids du corps'],
+  'Gainage latéral': ['Pallof press', 'Rotation russe', 'Dead bug', 'Crunch'],
+  'Élévations latérales': ['Élévations latérales à la poulie', 'Élévations latérales élastique', 'Oiseau haltères', 'Y-T-W au sol', 'Pompes piquées'],
+};
+const slot = (n, s) => ({ n, s, alts: SLOT[n] });
+
 export const SESSIONS = [
-  { id: 'lower', name: 'Bas du corps', ex: [
-    { n: 'Squat', s: 4, alts: ['Presse à cuisses', 'Hack squat', 'Goblet squat', 'Squat au poids du corps'] },
-    { n: 'Fentes bulgares', s: 3, alts: ['Fentes marchées', 'Step-up sur banc', 'Fentes au poids du corps'] },
-    { n: 'Soulevé de terre roumain', s: 3, alts: ['Soulevé de terre roumain haltères', 'Hip thrust', 'Leg curl', 'Pont fessier'] },
-    { n: 'Gainage', s: 3, alts: ['Dead bug', 'Relevés de jambes', 'Roue abdominale'] },
-  ] },
-  { id: 'push', name: 'Haut du corps · Poussée', ex: [
-    { n: 'Développé couché', s: 4, alts: ['Développé couché haltères', 'Presse pectoraux', 'Pompes'] },
-    { n: 'Développé militaire haltères', s: 3, alts: ['Développé militaire barre', 'Presse épaules', 'Pompes piquées'] },
-    { n: 'Dips', s: 3, alts: ['Développé couché prise serrée', 'Pompes diamant', 'Dips sur banc'] },
-    { n: 'Extensions triceps', s: 3, alts: ['Barre au front', 'Extension haltère nuque', 'Kickback haltère', 'Pompes prise serrée'] },
-  ] },
-  { id: 'pull', name: 'Haut du corps · Tirage', ex: [
-    { n: 'Tractions', s: 4, alts: ['Tirage vertical', 'Tractions assistées', 'Rowing inversé', 'Rowing sous une table'] },
-    { n: 'Rowing barre', s: 3, alts: ['Rowing haltère un bras', 'Tirage horizontal', 'Rowing machine', 'Rowing élastique', 'Superman'] },
-    { n: 'Face pull', s: 3, alts: ['Oiseau haltères', 'Pec deck inversé', 'Tirage élastique', 'Y-T-W au sol'] },
-    { n: 'Curl biceps', s: 3, alts: ['Curl marteau', 'Curl barre EZ', 'Curl poulie', 'Curl élastique'] },
-  ] },
-  { id: 'full', name: 'Full body', ex: [
-    { n: 'Soulevé de terre', s: 4, alts: ['Soulevé de terre trap bar', 'Soulevé de terre roumain haltères', 'Hip thrust', 'Pont fessier'] },
-    { n: 'Pompes', s: 3, alts: ['Développé couché haltères', 'Pompes sur les genoux', 'Presse pectoraux'] },
-    { n: 'Goblet squat', s: 3, alts: ['Presse à cuisses', 'Squat', 'Fentes marchées', 'Squat au poids du corps'] },
-    { n: 'Gainage latéral', s: 3, alts: ['Pallof press', 'Rotation russe', 'Dead bug'] },
-  ] },
+  { id: 'lower', name: 'Bas du corps', ex: [slot('Squat', 4), slot('Fentes bulgares', 3), slot('Soulevé de terre roumain', 3), slot('Gainage', 3)] },
+  { id: 'push', name: 'Haut du corps · Poussée', ex: [slot('Développé couché', 4), slot('Développé militaire haltères', 3), slot('Dips', 3), slot('Extensions triceps', 3)] },
+  { id: 'pull', name: 'Haut du corps · Tirage', ex: [slot('Tractions', 4), slot('Rowing barre', 3), slot('Face pull', 3), slot('Curl biceps', 3)] },
+  { id: 'full', name: 'Full body', ex: [slot('Soulevé de terre', 4), slot('Pompes', 3), slot('Goblet squat', 3), slot('Gainage latéral', 3)] },
+  // Hors rotation : à choisir quand tu en as envie
+  { id: 'upper', name: 'Haut du corps complet', extra: true, ex: [slot('Développé couché', 3), slot('Tractions', 3), slot('Développé militaire haltères', 3), slot('Rowing barre', 3), slot('Élévations latérales', 3), slot('Curl biceps', 3)] },
 ];
+
+// Ordre du programme. Les séances « extra » ne tournent pas : elles se choisissent à la main.
+export const ROTATION = ['lower', 'push', 'pull', 'full'];
+export const sessionById = id => SESSIONS.find(x => x.id === id) || null;
+/** Séance prévue par le programme, n séances plus loin. */
+export const rotationSession = (db, n = 0) => sessionById(ROTATION[((db.sessIdx || 0) + n) % ROTATION.length]);
+
 
 // Activités hors programme (valeurs MET du Compendium of Physical Activities).
 export const ACTIVITIES = [
@@ -269,8 +361,24 @@ export function balance(db, ref = todayKey(), extra = 0) {
   return { days: [...days, today], sum, steps, pct: steps * STEP_PCT, target };
 }
 
+/** La prochaine séance : celle que tu as choisie à la main, sinon celle du programme. */
 export function currentSession(db) {
-  return SESSIONS[db.sessIdx % SESSIONS.length];
+  return (db.choice && sessionById(db.choice)) || rotationSession(db);
+}
+
+/** Les n prochaines séances : jour et contenu. Un choix à la main ne décale pas le programme. */
+export function upcoming(db, n = 5, ref = todayKey()) {
+  const days = db.profile?.days?.length ? db.profile.days : [0, 2, 4];
+  const out = [];
+  let k = nextTrainingDay(db, ref);
+  const chosen = !!(db.choice && sessionById(db.choice) && db.choice !== rotationSession(db).id);
+  for (let i = 0; i < n; i++) {
+    out.push({ k, session: i === 0 ? currentSession(db) : rotationSession(db, chosen ? i - 1 : i) });
+    let next = addDays(k, 1);
+    for (let j = 0; j < 8 && !days.includes(weekday(next)); j++) next = addDays(next, 1);
+    k = next;
+  }
+  return out;
 }
 
 // Prochain jour d'entraînement (aujourd'hui inclus si aucune séance n'y a été faite).
@@ -331,7 +439,7 @@ export function buildPlan(session, goal, steps, db, overrides = {}, opts = {}) {
   const minutes = Math.round(WARM + work / 60 + fin);
   return {
     session: { id: session.id, name: session.name + (opts.express ? ' · express' : '') }, goal, steps, pct: steps * STEP_PCT, ex, fin, finBase, rest, minutes,
-    express: !!opts.express,
+    express: !!opts.express, cardio: cardioLabel(db),
     added: ex.filter(e => e.d > 0).length, removed: ex.filter(e => e.d < 0).length,
   };
 }
@@ -369,7 +477,7 @@ export function sequence(plan) {
   plan.ex.forEach((e, idx) => {
     for (let i = 1; i <= e.sets; i++) out.push({ kind: 'set', block: idx + 1, ex: idx, name: e.name, i, n: e.sets });
   });
-  if (plan.fin) out.push({ kind: 'timed', block: plan.ex.length + 1, name: 'Cardio final', min: plan.fin, sub: `${plan.fin} min · vélo ou rameur`, finisher: true });
+  if (plan.fin) out.push({ kind: 'timed', block: plan.ex.length + 1, name: 'Cardio final', min: plan.fin, sub: `${plan.fin} min · ${plan.cardio || 'vélo ou rameur'}`, finisher: true });
   return out;
 }
 

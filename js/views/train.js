@@ -2,11 +2,11 @@ import { html, useState, useEffect, useRef } from '../../vendor/preact-htm.js';
 import { GOALS, dayTotals } from '../lib/nutrition.js';
 import {
   WARM, sequence, blocks, specOf, metKcal, nextTrainingDay, exInfo, currentTarget,
-  stepChoices, defaultStep, RATINGS, fmtKg, isStale, buildPlan, planKcal, currentSession, feasible, restFor, PLACES, defaultGear,
+  stepChoices, defaultStep, RATINGS, fmtKg, isStale, buildPlan, planKcal, currentSession, feasible, restFor, PLACES, defaultGear, exPhotos, SESSIONS, rotationSession, upcoming, cardioLabel,
 } from '../lib/program.js';
-import { todayKey, addDays, mondayOf, weekday, dayNum, DAY_LETTER, DAY_SHORT, relativeDay } from '../lib/dates.js';
+import { todayKey, addDays, mondayOf, weekday, dayNum, DAY_LETTER, DAY_SHORT, relativeDay, longLabel } from '../lib/dates.js';
 import { getDay } from '../lib/store.js';
-import { fmt, sg, pctTxt, adjShort, fmtClock, Icon, Kicker, Sheet, Seg, Stepper, LoadControl, Sparkline } from '../ui.js';
+import { fmt, sg, pctTxt, adjShort, fmtClock, Icon, Kicker, Sheet, Seg, Stepper, LoadControl, Sparkline, cap } from '../ui.js';
 import { linkCard } from './today.js';
 import { beep } from '../lib/sound.js';
 import { GearSheet } from './gear.js';
@@ -29,7 +29,22 @@ function lastTime(db, name) {
 }
 
 /** Fiche d'un exercice : charge, progression et remplacements. */
-export function ExerciseSheet({ db, name, slot, alts, scope, actions, onClose }) {
+export /** Petite photo d'un exercice (rien si l'exercice n'en a pas, ou si l'image ne charge pas). */
+function Thumb({ name }) {
+  const ph = exPhotos(name);
+  if (!ph) return null;
+  return html`<img class="ex-thumb" src=${ph[0]} alt="" loading="lazy" width="48" height="48" onError=${e => { e.target.style.display = 'none'; }} />`;
+}
+
+function ExPhotos({ name }) {
+  const ph = exPhotos(name);
+  if (!ph) return null;
+  return html`<div class="ex-photos" role="img" aria-label=${`${name} : position de départ et position d’arrivée`}>
+    ${ph.map(src => html`<img key=${src} src=${src} alt="" loading="lazy" onError=${e => { e.target.style.display = 'none'; }} />`)}
+  </div>`;
+}
+
+function ExerciseSheet({ db, name, slot, alts, scope, actions, onClose }) {
   const info = exInfo(name);
   const p = db.progress[name] || {};
   const t = currentTarget(db, name);
@@ -47,6 +62,7 @@ export function ExerciseSheet({ db, name, slot, alts, scope, actions, onClose })
       <div class="sheet-title">${name}</div>
       <div class="muted small">${info.gear}${info.per ? ' · charge par main' : ''}</div>
     </div>
+    <${ExPhotos} name=${name} />
 
     ${info.kind === 'kg'
       ? html`<div class="stack-s">
@@ -94,6 +110,7 @@ export function ExerciseSheet({ db, name, slot, alts, scope, actions, onClose })
       ${scope === 'workout' && html`<${Seg} small options=${[{ id: 'always', label: 'Pour toutes les séances' }, { id: 'once', label: 'Juste aujourd’hui' }]} value=${mode} onChange=${setMode} />`}
       <div class="alt-list">
         ${others.map(a => html`<button key=${a} class="alt" onClick=${() => { actions.swap(slot, a, scope === 'workout' ? mode : 'always'); onClose(); }}>
+          <${Thumb} name=${a} />
           <div class="alt-txt">
             <div class="strong">${a}${a === slot ? html` <span class="muted small">· d’origine</span>` : ''}</div>
             <div class="muted small">${exInfo(a).gear}${feasible(db, a) ? '' : html` · <span class="accent">pas dans ton matériel</span>`}</div>
@@ -110,12 +127,12 @@ function row(name, spec, tag, dir, muted, ex) {
   return { name, spec, tag, dir, muted, ex };
 }
 
-export function planRows(plan) {
+export function planRows(plan, cardio = 'vélo ou rameur') {
   const rows = [row('Échauffement', `${WARM} min · mobilité et cardio léger`)];
   plan.ex.forEach(e => rows.push(row(e.name, specOf(e) + (e.name !== e.slot ? ` · remplace ${e.slot}` : '') + (e.nogear ? ' · matériel manquant' : ''), e.d > 0 ? '+1 série' : e.d < 0 ? '−1 série' : '', e.d, false, e)));
   if (plan.fin || plan.finBase) {
     const tag = plan.fin > plan.finBase ? (plan.finBase ? `+${plan.fin - plan.finBase} min` : 'ajouté') : plan.fin < plan.finBase ? 'retiré' : '';
-    rows.push(row('Cardio final', plan.fin ? `${plan.fin} min · vélo ou rameur` : 'retiré pour cette séance', tag, Math.sign(plan.fin - plan.finBase), !plan.fin));
+    rows.push(row('Cardio final', plan.fin ? `${plan.fin} min · ${cardio}` : 'retiré pour cette séance', tag, Math.sign(plan.fin - plan.finBase), !plan.fin));
   }
   rows.push(row('Repos entre les séries', `${plan.rest} s${!plan.express && plan.ex.some(e => e.rest) ? ' · sauf tes réglages par exercice' : ''}`, plan.rest < 90 ? '−30 s' : plan.rest > 90 ? '+30 s' : '', plan.rest < 90 ? 1 : -1));
   return rows;
@@ -130,6 +147,12 @@ export function Train({ db, actions }) {
   const [sheet, setSheet] = useState(null);
   const [express, setExpress] = useState(false);
   const [gearOpen, setGearOpen] = useState(false);
+  const [picking, setPicking] = useState(false);
+  const [preview, setPreview] = useState(null);
+  const rot = rotationSession(db);
+  const chosen = currentSession(db).id !== rot.id;
+  const next = upcoming(db, 5, tk);
+  const choose = id => { actions.update(d => { d.choice = id === rotationSession(d).id ? null : id; }); setPicking(false); setPreview(null); setExpress(false); };
   const plan = express ? buildPlan(currentSession(db), p.goal, B.steps, db, {}, { express: true }) : L.plan;
   const kcal = express ? planKcal(plan, p.weight) : L.kcal;
   const place = (PLACES.find(x => x.id === (db.gear || defaultGear()).active) || PLACES[0]).label;
@@ -211,8 +234,13 @@ export function Train({ db, actions }) {
         </div>
         <div class=${`adj-chip ${kind}`}>${adjShort(B.pct)}</div>
       </div>
-      ${planRows(plan).map((r, i) => r.ex
+      <div class="session-pick">
+        <button class="chip" onClick=${() => setPicking(true)}>Changer de séance</button>
+        ${chosen && html`<span class="muted tiny">À la place de « ${rot.name} », qui reste la suivante. <button class="link" onClick=${() => actions.update(d => { d.choice = null; })}>Revenir au programme</button></span>`}
+      </div>
+      ${planRows(plan, cardioLabel(db)).map((r, i) => r.ex
         ? html`<button key=${i} class="plan-row tap" onClick=${() => setSheet(r.ex)}>
+            <${Thumb} name=${r.name} />
             <div class="plan-txt">
               <div class="strong">${r.name}</div>
               <div class="muted small">${r.spec}</div>
@@ -237,6 +265,19 @@ export function Train({ db, actions }) {
     ${kind === 'down' && html`<div class="nudge">Il te manque de l’énergie pour bien récupérer : ajoute une collation riche en protéines (~${L.snack} kcal) avant la séance.</div>`}
 
     <button class="btn btn-dark wide" onClick=${() => actions.startWorkout(plan, B)}>Commencer la séance</button>
+
+    <section class="stack">
+      <div class="section-head"><h2>Prochaines séances</h2><span class="muted small">touche pour voir</span></div>
+      <div class="card list-card">
+        ${next.slice(1).map(u => html`<button key=${u.k} class="plan-row tap" onClick=${() => setPreview(u)}>
+          <div class="plan-txt">
+            <div class="strong">${u.session.name}</div>
+            <div class="muted small">${cap(longLabel(u.k))}</div>
+          </div>
+          <span class="chev"><${Icon} name="right" size=${16} /></span>
+        </button>`)}
+      </div>
+    </section>
 
     <section class="stack">
       <div class="section-head"><h2>Progression des charges</h2></div>
@@ -272,6 +313,41 @@ export function Train({ db, actions }) {
 
     ${sheet && html`<${ExerciseSheet} db=${db} name=${sheet.name} slot=${sheet.slot} alts=${sheet.alts} scope="plan" actions=${actions} onClose=${() => setSheet(null)} />`}
     ${gearOpen && html`<${GearSheet} db=${db} actions=${actions} onClose=${() => setGearOpen(false)} />`}
+
+    ${picking && html`<${Sheet} onClose=${() => setPicking(false)} title="Changer de séance">
+      <div>
+        <div class="sheet-title">Quelle séance veux-tu faire ?</div>
+        <div class="muted small">Le programme prévoit « ${rot.name} ». Si tu en choisis une autre, celle-ci reste la suivante.</div>
+      </div>
+      <div class="alt-list">
+        ${SESSIONS.map(s => {
+          const pl = buildPlan(s, p.goal, B.steps, db);
+          const on = currentSession(db).id === s.id;
+          return html`<button key=${s.id} class=${`alt ${on ? 'on' : ''}`} onClick=${() => choose(s.id)}>
+            <div class="alt-txt">
+              <div class="strong">${s.name}${s.id === rot.id ? html` <span class="tag down">prévue</span>` : ''}</div>
+              <div class="muted small">${pl.minutes} min · ${pl.ex.map(e => e.name).join(', ')}</div>
+            </div>
+            ${on ? html`<${Icon} name="check" size=${18} />` : html`<${Icon} name="right" size=${18} />`}
+          </button>`;
+        })}
+      </div>
+    </${Sheet}>`}
+
+    ${preview && html`<${Sheet} onClose=${() => setPreview(null)} title=${preview.session.name}>
+      <div>
+        <div class="muted small">${cap(longLabel(preview.k))}</div>
+        <div class="sheet-title">${preview.session.name}</div>
+      </div>
+      <div class="card list-card">
+        ${buildPlan(preview.session, p.goal, 0, db).ex.map(e => html`<div key=${e.name} class="plan-row">
+          <${Thumb} name=${e.name} />
+          <div class="plan-txt"><div class="strong">${e.name}</div><div class="muted small">${specOf(e)}</div></div>
+        </div>`)}
+      </div>
+      <div class="muted tiny">Séance de base. L’ajustement selon tes repas sera calculé le jour même.</div>
+      <button class="btn btn-dark wide" onClick=${() => choose(preview.session.id)}>La faire dès la prochaine séance</button>
+    </${Sheet}>`}
   </div>`;
 }
 
@@ -363,7 +439,7 @@ export function Workout({ db, actions }) {
       <div class="wk-title">${heading}</div>
       <div class="row-between">
         <div class="wk-sub">${sub}</div>
-        ${cur.kind === 'set' && html`<button class="pill-dark small" onClick=${() => setSheet(w.plan.ex[cur.ex])}>Remplacer</button>`}
+        ${cur.kind === 'set' && html`<button class="pill-dark small" onClick=${() => setSheet(w.plan.ex[cur.ex])}>${exPhotos(cur.name) ? 'Voir / remplacer' : 'Remplacer'}</button>`}
       </div>
     </div>
 

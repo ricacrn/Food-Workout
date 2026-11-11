@@ -1,6 +1,6 @@
 // Service worker : l'app s'ouvre même sans réseau.
 // À chaque mise à jour publiée, augmente le numéro de VERSION pour forcer le rafraîchissement.
-const VERSION = 'v1.3.0';
+const VERSION = 'v1.4.0';
 const CACHE = `platepace-${VERSION}`;
 const SHELL = [
   './',
@@ -24,6 +24,7 @@ const SHELL = [
   './js/lib/sound.js',
   './js/lib/store.js',
   './js/lib/recipes.js',
+  './js/lib/photos.js',
   './js/lib/version.js',
   './vendor/preact-htm.js',
   './icons/icon-192.png',

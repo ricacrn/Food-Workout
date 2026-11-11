@@ -1,4 +1,5 @@
-import { html, useState } from '../../vendor/preact-htm.js';
+import { html, useState, useEffect } from '../../vendor/preact-htm.js';
+import { cachedPhotos, loadPhotos, dropPhoto } from '../lib/photos.js';
 import { MEALS, GOALS } from '../lib/nutrition.js';
 import { suggestions, scaled, totals, qtyLabel, journalItem, shopList, shopText, shopSources, findRecipe, mealBudgets, fit, allRecipes, autoPlan, PLAN_MEALS } from '../lib/recipes.js';
 import { inventRecipe } from '../lib/ai.js';
@@ -9,7 +10,7 @@ import { fmt, Icon, Kicker, Sheet, Seg, cap } from '../ui.js';
 const line = t => `${t.kcal} kcal · ${t.p} g de protéines`;
 
 /** Fiche recette : ingrédients à la bonne portion, étapes, « Je l'ai mangé » et liste de courses. */
-function RecipeSheet({ db, recipe, factor: f0, meal, actions, onClose }) {
+function RecipeSheet({ db, recipe, factor: f0, meal, actions, onClose, photo, onPhotoError }) {
   const [factor, setFactor] = useState(f0);
   const items = scaled(recipe, factor);
   const t = totals(items);
@@ -27,6 +28,10 @@ function RecipeSheet({ db, recipe, factor: f0, meal, actions, onClose }) {
   };
 
   return html`<${Sheet} onClose=${onClose} title=${recipe.name}>
+    ${photo && html`<figure class="recipe-photo">
+      <img src=${photo.src} alt="" onError=${onPhotoError} />
+      <figcaption>Photo d’illustration · ${photo.page ? html`<a href=${photo.page} target="_blank" rel="noopener">Wikipédia</a>` : 'Wikipédia'}</figcaption>
+    </figure>`}
     <div>
       <div class="sheet-title">${recipe.name}</div>
       <div class="muted small">${recipe.min} min · pour 1 personne</div>
@@ -124,6 +129,9 @@ export function Ideas({ db, actions }) {
   const [shifts, setShifts] = useState({});
   const [open, setOpen] = useState(null);
   const [custom, setCustom] = useState(false);
+  const [photos, setPhotos] = useState(cachedPhotos);
+  useEffect(() => { let on = true; loadPhotos().then(p => { if (on) setPhotos(p); }); return () => { on = false; }; }, []);
+  const badPhoto = id => { dropPhoto(id); setPhotos(p => { const n = { ...p }; delete n[id]; return n; }); };
   const S = suggestions(db, tk, shifts);
   const sources = shopSources(db);
   const picked = new Set(sources.map(p => p.rid));
@@ -173,6 +181,7 @@ export function Ideas({ db, actions }) {
         <${Icon} name="right" size=${18} />
       </button>`}
       ${S[m.id].picks.map(p => html`<button key=${p.r.id} class="card idea" onClick=${() => setOpen({ id: p.r.id, factor: p.factor, meal: m.id })}>
+        ${photos[p.r.id] && html`<img class="idea-img" src=${photos[p.r.id].src} alt="" loading="lazy" onError=${() => badPhoto(p.r.id)} />`}
         <span class="plan-txt">
           <span class="strong">${p.r.name}</span>
           <span class="muted small">${p.r.min} min · ${line(p.tot)}</span>
@@ -206,7 +215,8 @@ export function Ideas({ db, actions }) {
 
     <div class="muted tiny foot">Recettes pour une personne. Les féculents sont pesés cuits ; la liste de courses les convertit en poids cru.</div>
 
-    ${cur && html`<${RecipeSheet} key=${cur.id} db=${db} recipe=${cur} factor=${open.factor} meal=${open.meal} actions=${actions} onClose=${() => setOpen(null)} />`}
+    ${cur && html`<${RecipeSheet} key=${cur.id} db=${db} recipe=${cur} factor=${open.factor} meal=${open.meal} actions=${actions} onClose=${() => setOpen(null)}
+      photo=${photos[cur.id]} onPhotoError=${() => badPhoto(cur.id)} />`}
     ${custom && html`<${CustomSheet} db=${db} actions=${actions} onClose=${() => setCustom(false)}
       onReady=${(r, meal) => { setCustom(false); setOpen({ id: r.id, factor: 1, meal }); }} />`}
   </div>`;

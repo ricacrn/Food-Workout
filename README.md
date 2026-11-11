@@ -20,6 +20,8 @@ Webapp (PWA) qui mêle nourriture et sport : tu notes ce que tu manges, et ton p
 - **Idées de repas** : 3 idées par repas, ajustées aux calories qu'il te reste, avec ingrédients et étapes. « Je l'ai mangé » note le plat ; avec la clé API, une recette sur mesure à partir de ce que tu as dans le frigo.
 - **Semaine et liste de courses** : planifie tes repas sur 7 jours ; la liste de courses s'additionne toute seule, rangée par rayon, et se partage.
 - **Repas rapides** : repas habituels, « Comme hier », assiettes types de cantine ou de restaurant.
+- **Photos** : chaque exercice et chaque appareil a sa photo de démonstration (dans `img/ex/`) ; les recettes affichent une photo d'illustration chargée depuis Wikipédia quand il y a du réseau.
+- **Choix de la séance** : tu vois les prochaines séances et tu peux en faire une autre que celle prévue (par exemple « Haut du corps complet ») sans décaler le programme.
 - **Mon matériel** : coche ce qui existe dans ta salle (et à la maison) ; le programme ne propose que des exercices faisables. Un remplacement est retenu pour les séances suivantes.
 - **Séance** : version express de 20 min, répétitions réellement faites, repos réglable et note par exercice, records.
 - **Suivi du poids** : une pesée par semaine recalcule ta cible de calories.
@@ -117,6 +119,10 @@ python3 -m http.server 8000
 Ouvre ensuite <http://localhost:8000>. La caméra ne fonctionne qu'en `localhost` ou en HTTPS. GitHub Pages est en HTTPS.
 
 ## Crédits
+
+- Photos des exercices et du matériel : [free-exercise-db](https://github.com/yuhonas/free-exercise-db), domaine public (Unlicense).
+- Photos des recettes : image principale de l'article Wikipédia correspondant (Wikimedia Commons, licences libres), liée depuis chaque fiche. La correspondance recette → article est dans `js/lib/photos.js`.
+
 
 - [Preact](https://preactjs.com) et [htm](https://github.com/developit/htm) (MIT)
 - [barcode-detector](https://github.com/Sec-ant/barcode-detector) et [zxing-wasm](https://github.com/Sec-ant/zxing-wasm) (MIT, Apache-2.0)

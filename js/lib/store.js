@@ -12,6 +12,8 @@ export const defaultDb = () => ({
   swaps: {},
   sessions: [],
   sessIdx: 0,
+  choice: null, // séance choisie à la main pour la prochaine fois (sinon : celle du programme)
+  gearV: 2,
   recents: [],
   favs: [], // repas habituels
   shop: { picks: [], checked: {}, extra: [] }, // liste de courses
@@ -58,6 +60,14 @@ function migrate(data) {
   db.planN = db.planN > 0 ? db.planN : 1;
   db.weights = Array.isArray(db.weights) ? db.weights : [];
   db.gear = { ...base.gear, ...(db.gear || {}) };
+  // v1.4 : la liste de matériel s'est agrandie. Dans une salle déjà réglée, les nouveautés sont cochées
+  // d'office (à toi de décocher ce qui manque) ; à la maison, elles restent décochées.
+  if (data.gearV !== 2) {
+    const added = ['rack', 'smith', 'banc_incline', 'crossover', 'chaise', 'lombaires', 'tbar', 'trx', 'm_legext', 'm_adducteurs', 'm_abducteurs',
+      'm_mollets', 'm_lat', 'm_dips', 'm_triceps', 'm_biceps', 'm_abdos', 'tapis', 'velo', 'rameur', 'elliptique', 'escalier'];
+    if (Array.isArray(db.gear.salle)) db.gear.salle = [...new Set([...db.gear.salle, ...added])];
+    db.gearV = 2;
+  }
   return db;
 }
 

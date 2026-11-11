@@ -521,3 +521,26 @@ img { display: block; max-width: 100%; }
   .wk-reps > button { width: 42px; height: 42px; }
   .workout { gap: 10px; }
 }
+
+/* ── v1.4 : photos ── */
+.ex-thumb { width: 48px; height: 48px; border-radius: 12px; object-fit: cover; flex: none; background: var(--soft); }
+.plan-row.tap .ex-thumb, .alt .ex-thumb { margin-right: 2px; }
+.plan-row { gap: 12px; }
+.ex-photos { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.ex-photos img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 14px; background: var(--soft); display: block; }
+.gear-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.gear-card { position: relative; display: flex; flex-direction: column; text-align: left; background: var(--card); border-radius: 16px; overflow: hidden; box-shadow: inset 0 0 0 1.5px rgba(31, 27, 23, .1); opacity: .62; }
+.gear-card.on { opacity: 1; box-shadow: inset 0 0 0 2px var(--ink); }
+.gear-img { display: block; aspect-ratio: 16 / 10; background: var(--soft); }
+.gear-img img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.gear-name { padding: 9px 10px 11px; font-size: 13.5px; font-weight: 600; line-height: 1.25; }
+.gear-check { position: absolute; top: 8px; right: 8px; width: 24px; height: 24px; border-radius: 50%; background: rgba(255, 255, 255, .88); border: 1.5px solid rgba(31, 27, 23, .3); display: grid; place-items: center; color: var(--card); }
+.gear-card.on .gear-check { background: var(--ink); border-color: var(--ink); }
+.gear-all { display: inline-flex; gap: 14px; }
+.session-pick { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 10px 0 4px; }
+.session-pick .chip { flex: none; }
+.idea-img { width: 56px; height: 56px; border-radius: 14px; object-fit: cover; flex: none; background: var(--soft); }
+.recipe-photo { margin: 0; }
+.recipe-photo img { width: 100%; aspect-ratio: 16 / 10; object-fit: cover; border-radius: 18px; display: block; background: var(--soft); }
+.recipe-photo figcaption { font-size: 11.5px; color: var(--muted); margin-top: 5px; text-align: right; }
+.recipe-photo a { color: inherit; }

@@ -5,7 +5,8 @@ import { DAY_LETTER, DAY_NAMES } from '../lib/dates.js';
 import { MODELS } from '../lib/ai.js';
 import { exportFile, importFile } from '../lib/store.js';
 import { APP_VERSION } from '../lib/version.js';
-import { GearPicker } from './gear.js';
+import { GearSheet } from './gear.js';
+import { EQUIPMENT, PLACES, defaultGear } from '../lib/program.js';
 import { SESSIONS } from '../lib/program.js';
 import { fmt, Icon, Seg, Sheet, Stepper, Kicker } from '../ui.js';
 
@@ -96,6 +97,8 @@ export function Settings({ db, actions }) {
   const setS = patch => actions.update(d => { d.settings = { ...d.settings, ...patch }; });
   const [showKey, setShowKey] = useState(false);
   const fileRef = useRef(null);
+  const [gearOpen, setGearOpen] = useState(false);
+  const gear = db.gear || defaultGear();
   const slots = new Set(SESSIONS.flatMap(s => s.ex.map(e => e.n)));
   const swaps = Object.entries(db.swaps || {}).filter(([from]) => slots.has(from));
 
@@ -142,7 +145,11 @@ export function Settings({ db, actions }) {
     <section class="stack">
       <h2>Mon matériel</h2>
       <p class="muted small">Coche ce qui existe là où tu t’entraînes : le programme ne propose que des exercices faisables.</p>
-      <${GearPicker} db=${db} actions=${actions} />
+      <button class="card hist" onClick=${() => setGearOpen(true)}>
+        <div><div class="strong">${(PLACES.find(x => x.id === gear.active) || PLACES[0]).label}</div><div class="muted small">${gear[gear.active] ? `${gear[gear.active].length} appareils cochés sur ${EQUIPMENT.length}` : 'Tout le matériel est disponible'}</div></div>
+        <span class="accent strong">Régler</span>
+      </button>
+      ${gearOpen && html`<${GearSheet} db=${db} actions=${actions} onClose=${() => setGearOpen(false)} />`}
     </section>
 
     ${swaps.length > 0 && html`<section class="stack">

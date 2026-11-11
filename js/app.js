@@ -1,7 +1,7 @@
 import { html, render, useState, useEffect, useRef } from '../vendor/preact-htm.js';
 import * as store from './lib/store.js';
 import { mealForNow } from './lib/nutrition.js';
-import { sequence, metKcal, exerciseEntry, recompute, roundKg, isStale, restFor } from './lib/program.js';
+import { sequence, metKcal, exerciseEntry, recompute, roundKg, isStale, restFor, rotationSession } from './lib/program.js';
 import { targetFor } from './lib/nutrition.js';
 import { todayKey, hhmm } from './lib/dates.js';
 import { unlockAudio, keepAwake } from './lib/sound.js';
@@ -83,7 +83,7 @@ function removeActivityIn(d, date, id) {
   const i = a.sid ? d.sessions.findIndex(s => s.id === a.sid) : d.sessions.findIndex(s => s.date === date && s.name === a.label);
   if (i >= 0) {
     // c'était la dernière séance : le programme la repropose au lieu de la sauter
-    if (i === d.sessions.length - 1) d.sessIdx = Math.max(0, d.sessIdx - 1);
+    if (i === d.sessions.length - 1 && d.sessions[i].adv !== false) d.sessIdx = Math.max(0, d.sessIdx - 1);
     d.sessions.splice(i, 1);
   }
   if (a.sid) Object.entries(d.progress).forEach(([name, p]) => {
@@ -151,9 +151,12 @@ function App() {
       const k = w.date;
       d.days[k] = d.days[k] || store.emptyDay();
       d.days[k].activities.push({ id: uid(), sid, type: 'session', label: name, min, kcal, time: hhmm(new Date(w.startedAt)) });
-      d.sessions.push({ id: sid, date: k, name, min, kcal, pct: w.plan.pct });
+      // Le programme n'avance que si c'était la séance prévue : une séance choisie à la main ne décale rien.
+      const adv = w.plan.session.id === rotationSession(d).id;
+      d.sessions.push({ id: sid, date: k, name, min, kcal, pct: w.plan.pct, adv });
       d.sessions = d.sessions.slice(-200);
-      d.sessIdx += 1;
+      if (adv) d.sessIdx += 1;
+      d.choice = null;
       d.workout = null;
       // Historique et progression de chaque exercice réellement fait
       const seen = new Set();
