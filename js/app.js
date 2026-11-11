@@ -104,17 +104,21 @@ function App() {
   useEffect(() => { window.scrollTo(0, 0); }, [ui.screen, !!db.profile]);
   useEffect(() => { currentScreen = db.profile ? ui.screen : 'today'; tryReload(); }, [ui.screen, !!db.profile]);
 
-  const update = fn =>
-    setDb(prev => {
+  const update = fn => {
+    // Une nouvelle modification rend l'ancien « Annuler » dangereux (il effacerait aussi ce changement) : on le retire.
+    setToast(t => (t && t.undo ? null : t));
+    return setDb(prev => {
       const draft = structuredClone(prev);
       const res = fn(draft);
       const next = res || draft;
       if (!store.save(next)) notify('Mémoire du téléphone pleine : exporte puis efface d’anciennes données.');
       return next;
     });
+  };
 
   // undo : état à restaurer si tu touches « Annuler » dans le message.
   function notify(msg, undo) {
+    // (voir update : une nouvelle modification retire le bouton « Annuler » de la précédente)
     setToast({ msg, undo: undo || null });
     clearTimeout(toastT.current);
     toastT.current = setTimeout(() => setToast(null), undo ? 6000 : 2800);

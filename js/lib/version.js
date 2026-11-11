@@ -1,2 +1,2 @@
 // Numéro affiché dans Réglages. À changer en même temps que VERSION dans sw.js.
-export const APP_VERSION = '1.4.0';
+export const APP_VERSION = '1.4.1';

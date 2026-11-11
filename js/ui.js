@@ -76,9 +76,28 @@ export function Stepper({ value, unit, step = 10, onChange, label }) {
   </div>`;
 }
 
+// Tant qu'une fenêtre est ouverte, la page derrière est figée : c'est la fenêtre qui défile, pas le fond.
+// (Sur iPhone, « overflow: hidden » ne suffit pas : il faut fixer le body et retenir la position.)
+let locks = 0;
+let lockedY = 0;
+function lockScroll() {
+  if (locks++ > 0) return;
+  lockedY = window.scrollY || 0;
+  const b = document.body.style;
+  b.position = 'fixed'; b.top = `-${lockedY}px`; b.left = '0'; b.right = '0'; b.width = '100%';
+}
+function unlockScroll() {
+  if (--locks > 0) return;
+  locks = 0;
+  const b = document.body.style;
+  b.position = ''; b.top = ''; b.left = ''; b.right = ''; b.width = '';
+  window.scrollTo(0, lockedY);
+}
+
 export function Sheet({ onClose, children, title }) {
+  useEffect(() => { lockScroll(); return unlockScroll; }, []);
   return html`<div class="sheet-wrap">
-    <button class="sheet-scrim" aria-label="Fermer" onClick=${onClose}></button>
+    <button class="sheet-scrim" aria-label="Fermer" onClick=${onClose} onTouchMove=${e => e.preventDefault()}></button>
     <div class="sheet" role="dialog" aria-modal="true" aria-label=${title}>
       <div class="sheet-handle"></div>
       ${children}

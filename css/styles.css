@@ -202,7 +202,7 @@ img { display: block; max-width: 100%; }
 .sheet {
   position: relative; background: var(--bg); color: var(--ink); border-radius: 28px 28px 0 0;
   padding: 10px 20px calc(var(--bottom) + 24px); display: flex; flex-direction: column; gap: 16px;
-  max-height: 88vh; overflow-y: auto; animation: up .22s ease-out;
+  max-height: 88vh; max-height: 88dvh; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; animation: up .22s ease-out;
 }
 @keyframes up { from { transform: translateY(40px); opacity: 0; } }
 @keyframes down { from { transform: translate(-50%, -12px); opacity: 0; } }
