@@ -6,6 +6,7 @@ import { MODELS } from '../lib/ai.js';
 import { exportFile, importFile } from '../lib/store.js';
 import { APP_VERSION } from '../lib/version.js';
 import { GearSheet } from './gear.js';
+import { WatchSheet } from './watch.js';
 import { EQUIPMENT, PLACES, defaultGear } from '../lib/program.js';
 import { SESSIONS } from '../lib/program.js';
 import { fmt, Icon, Seg, Sheet, Stepper, Kicker } from '../ui.js';
@@ -98,6 +99,7 @@ export function Settings({ db, actions }) {
   const [showKey, setShowKey] = useState(false);
   const fileRef = useRef(null);
   const [gearOpen, setGearOpen] = useState(false);
+  const [watchOpen, setWatchOpen] = useState(false);
   const gear = db.gear || defaultGear();
   const slots = new Set(SESSIONS.flatMap(s => s.ex.map(e => e.n)));
   const swaps = Object.entries(db.swaps || {}).filter(([from]) => slots.has(from));
@@ -166,10 +168,12 @@ export function Settings({ db, actions }) {
       <div class="card watch">
         <svg width="26" height="36" viewBox="0 0 26 36" aria-hidden="true"><rect x="7" y="0" width="12" height="8" rx="2" fill="#D9D1C4" /><rect x="7" y="28" width="12" height="8" rx="2" fill="#D9D1C4" /><rect x="2" y="5" width="21" height="26" rx="7" fill="#1F1B17" /><rect x="23" y="13" width="2.5" height="6" rx="1" fill="#1F1B17" /></svg>
         <div>
-          <div class="strong">Bientôt</div>
-          <div class="muted small">En attendant, ajoute tes activités depuis Aujourd’hui et saisis les calories affichées par ta montre.</div>
+          <div class="strong">Import par Raccourci</div>
+          <div class="muted small">Une webapp ne peut pas lire l’app Santé directement. Un raccourci iOS copie tes entraînements, et l’app les importe avec les calories mesurées par la montre.</div>
         </div>
       </div>
+      <button class="btn btn-ghost wide" onClick=${() => setWatchOpen(true)}>Importer ou créer le raccourci</button>
+      ${watchOpen && html`<${WatchSheet} db=${db} actions=${actions} onClose=${() => setWatchOpen(false)} />`}
     </section>
 
     <section class="stack">

@@ -2,7 +2,7 @@ import { html, useState, useEffect, useRef } from '../../vendor/preact-htm.js';
 import { GOALS, dayTotals } from '../lib/nutrition.js';
 import {
   WARM, sequence, blocks, specOf, metKcal, nextTrainingDay, exInfo, currentTarget,
-  stepChoices, defaultStep, RATINGS, fmtKg, isStale, buildPlan, planKcal, currentSession, feasible, restFor, PLACES, defaultGear, exPhotos, SESSIONS, rotationSession, upcoming, cardioLabel,
+  stepChoices, defaultStep, RATINGS, fmtKg, isStale, buildPlan, planKcal, currentSession, feasible, restFor, PLACES, defaultGear, exPhotos, SESSIONS, rotationSession, upcoming, cardioLabel, DURATIONS,
 } from '../lib/program.js';
 import { todayKey, addDays, mondayOf, weekday, dayNum, DAY_LETTER, DAY_SHORT, relativeDay, longLabel } from '../lib/dates.js';
 import { getDay } from '../lib/store.js';
@@ -129,12 +129,18 @@ function row(name, spec, tag, dir, muted, ex) {
 
 export function planRows(plan, cardio = 'vélo ou rameur') {
   const rows = [row('Échauffement', `${WARM} min · mobilité et cardio léger`)];
-  plan.ex.forEach(e => rows.push(row(e.name, specOf(e) + (e.name !== e.slot ? ` · remplace ${e.slot}` : '') + (e.nogear ? ' · matériel manquant' : ''), e.d > 0 ? '+1 série' : e.d < 0 ? '−1 série' : '', e.d, false, e)));
+  plan.ex.forEach((e, i) => {
+    const mate = e.ss != null ? plan.ex.find((x, j) => j !== i && x.ss === e.ss) : null;
+    const r = row(e.name, specOf(e) + (e.name !== e.slot ? ` · remplace ${e.slot}` : '') + (e.nogear ? ' · matériel manquant' : ''), e.d > 0 ? '+1 série' : e.d < 0 ? '−1 série' : '', e.d, false, e);
+    if (mate) r.ss = `Superset avec ${mate.name} · sans repos entre les deux`;
+    rows.push(r);
+  });
   if (plan.fin || plan.finBase) {
     const tag = plan.fin > plan.finBase ? (plan.finBase ? `+${plan.fin - plan.finBase} min` : 'ajouté') : plan.fin < plan.finBase ? 'retiré' : '';
     rows.push(row('Cardio final', plan.fin ? `${plan.fin} min · ${cardio}` : 'retiré pour cette séance', tag, Math.sign(plan.fin - plan.finBase), !plan.fin));
   }
-  rows.push(row('Repos entre les séries', `${plan.rest} s${!plan.express && plan.ex.some(e => e.rest) ? ' · sauf tes réglages par exercice' : ''}`, plan.rest < 90 ? '−30 s' : plan.rest > 90 ? '+30 s' : '', plan.rest < 90 ? 1 : -1));
+  const rb = plan.restBase || 90;
+  rows.push(row('Repos entre les séries', `${plan.rest} s${plan.ex.some(e => e.rest) ? ' · sauf tes réglages par exercice' : ''}`, plan.rest < rb ? '−30 s' : plan.rest > rb ? '+30 s' : '', plan.rest < rb ? 1 : -1));
   return rows;
 }
 
@@ -145,16 +151,17 @@ export function Train({ db, actions }) {
   const p = db.profile;
   const G = GOALS[p.goal];
   const [sheet, setSheet] = useState(null);
-  const [express, setExpress] = useState(false);
+  const [durOpen, setDurOpen] = useState(false);
   const [gearOpen, setGearOpen] = useState(false);
   const [picking, setPicking] = useState(false);
   const [preview, setPreview] = useState(null);
   const rot = rotationSession(db);
   const chosen = currentSession(db).id !== rot.id;
   const next = upcoming(db, 5, tk);
-  const choose = id => { actions.update(d => { d.choice = id === rotationSession(d).id ? null : id; }); setPicking(false); setPreview(null); setExpress(false); };
-  const plan = express ? buildPlan(currentSession(db), p.goal, B.steps, db, {}, { express: true }) : L.plan;
-  const kcal = express ? planKcal(plan, p.weight) : L.kcal;
+  const choose = id => { actions.update(d => { d.choice = id === rotationSession(d).id ? null : id; }); setPicking(false); setPreview(null); };
+  const plan = L.plan;
+  const kcal = L.kcal;
+  const baseMin = buildPlan(currentSession(db), p.goal, 0, db, {}, { minutes: 0 }).minutes;
   const place = (PLACES.find(x => x.id === (db.gear || defaultGear()).active) || PLACES[0]).label;
   const nextK = nextTrainingDay(db, tk);
   const mon = mondayOf(tk);
@@ -244,6 +251,7 @@ export function Train({ db, actions }) {
             <div class="plan-txt">
               <div class="strong">${r.name}</div>
               <div class="muted small">${r.spec}</div>
+              ${r.ss && html`<div class="ss-line">${r.ss}</div>`}
             </div>
             ${r.tag && html`<div class=${`tag ${r.dir > 0 ? 'up' : 'down'}`}>${r.tag}</div>`}
             <span class="chev"><${Icon} name="right" size=${16} /></span>
@@ -258,7 +266,7 @@ export function Train({ db, actions }) {
       <div class="muted tiny session-hint">Touche un exercice pour régler sa charge, son repos, ou le remplacer.</div>
       <div class="session-opts">
         <button class="chip" onClick=${() => setGearOpen(true)}>Lieu : ${place}</button>
-        <button class=${`chip ${express ? 'on' : ''}`} role="switch" aria-checked=${express} onClick=${() => setExpress(!express)}>${express ? 'Express 20 min · activé' : 'Je n’ai que 20 min'}</button>
+        <button class=${`chip ${p.sessionMin ? 'on' : ''}`} onClick=${() => setDurOpen(true)}>Durée : ${p.sessionMin ? `${p.sessionMin} min` : 'automatique'}</button>
       </div>
     </section>
 
@@ -313,6 +321,18 @@ export function Train({ db, actions }) {
 
     ${sheet && html`<${ExerciseSheet} db=${db} name=${sheet.name} slot=${sheet.slot} alts=${sheet.alts} scope="plan" actions=${actions} onClose=${() => setSheet(null)} />`}
     ${gearOpen && html`<${GearSheet} db=${db} actions=${actions} onClose=${() => setGearOpen(false)} />`}
+
+    ${durOpen && html`<${Sheet} onClose=${() => setDurOpen(false)} title="Durée de la séance">
+      <div>
+        <div class="sheet-title">Combien de temps as-tu ?</div>
+        <div class="muted small">La séance s’adapte : plus de temps ajoute des exercices et des séries ; moins de temps enchaîne des exercices en superset, puis raccourcit. L’ajustement selon tes repas s’applique ensuite.</div>
+      </div>
+      <div class="dur-grid">
+        <button class=${`dur ${!p.sessionMin ? 'on' : ''}`} onClick=${() => { actions.update(d => { d.profile.sessionMin = 0; }); setDurOpen(false); }}><b>Auto</b><span>≈ ${baseMin} min</span></button>
+        ${DURATIONS.map(m => html`<button key=${m} class=${`dur ${p.sessionMin === m ? 'on' : ''}`} onClick=${() => { actions.update(d => { d.profile.sessionMin = m; }); setDurOpen(false); }}><b>${m >= 60 ? `${Math.floor(m / 60)} h${m % 60 ? ` ${m % 60}` : ''}` : m}</b><span>${m >= 60 ? ' ' : 'min'}</span></button>`)}
+      </div>
+      <div class="muted tiny">Ton choix est gardé pour toutes les séances, jusqu’à ce que tu le changes.</div>
+    </${Sheet}>`}
 
     ${picking && html`<${Sheet} onClose=${() => setPicking(false)} title="Changer de séance">
       <div>
@@ -379,7 +399,14 @@ export function Workout({ db, actions }) {
   const kcal = metKcal(5, weight, elapsed / 60 - finMin) + metKcal(8, weight, finMin);
   const exo = cur.kind === 'set' ? w.plan.ex[cur.ex] : null;
   const prev = w.step > 0 ? seq[w.step - 1] : null;
-  const justFinished = w.phase === 'rest' && prev && prev.kind === 'set' && prev.i === prev.n ? prev.name : null;
+  // Exercices qui viennent de se terminer : on demande le ressenti pendant le repos.
+  // Dans un superset, le premier exercice n'a pas de repos à lui : on le demande en même temps que le second.
+  const finished = [];
+  if (w.phase === 'rest' && prev && prev.kind === 'set') {
+    const before = w.step > 1 ? seq[w.step - 2] : null;
+    if (prev.ss === 'b' && before && before.kind === 'set' && before.ss === 'a' && before.i === before.n) finished.push(before.name);
+    if (prev.i === prev.n) finished.push(prev.name);
+  }
   const last = exo ? lastTime(db, exo.name) : null;
   const countable = w.phase === 'work' && exo && exo.kind !== 'sec';
   const repsDone = countable ? (adj.step === w.step ? adj.v : exo.reps) : null;
@@ -393,10 +420,11 @@ export function Workout({ db, actions }) {
     big = fmtClock(left); bigLabel = 'de récupération'; primary = 'Passer le repos';
   } else if (cur.kind === 'set') {
     heading = cur.name; sub = `Série ${cur.i} sur ${cur.n}`;
+    if (cur.ss) sub += cur.chain ? ` · superset : enchaîne avec ${cur.mate} sans repos` : ` · superset avec ${cur.mate}`;
     big = exo.kind === 'sec' ? String(exo.sec) : String(repsDone);
     bigLabel = exo.kind === 'sec' ? `secondes${exo.side ? ' par côté' : ''}` : exo.kind === 'bw' ? `répétitions${exo.side ? ' par jambe' : ''} · poids du corps` : `répétitions${exo.per ? ' · charge par main' : ''}`;
     if (countable && repsDone !== exo.reps) bigLabel = `répétitions faites · ${exo.reps} prévues`;
-    primary = 'Série terminée';
+    primary = cur.chain ? 'Fait, j’enchaîne' : 'Série terminée';
   } else {
     heading = cur.name; sub = cur.sub; big = fmtClock(left); bigLabel = 'restantes'; primary = 'Passer';
   }
@@ -454,12 +482,12 @@ export function Workout({ db, actions }) {
       <div class="dim">${bigLabel}</div>
       ${w.phase === 'work' && note && html`<div class="wk-note">${note}</div>`}
 
-      ${justFinished && html`<div class="rate">
-        <div class="small">${justFinished} terminé : c’était comment ?</div>
+      ${finished.map(name => html`<div key=${name} class="rate">
+        <div class="small">${name} terminé : c’était comment ?</div>
         <div class="rate-row">
-          ${RATINGS.map(r => html`<button key=${r.id} class=${(w.ratings && w.ratings[justFinished]) === r.id ? 'on' : ''} onClick=${() => actions.rate(justFinished, r.id)}>${r.label}</button>`)}
+          ${RATINGS.map(r => html`<button key=${r.id} class=${(w.ratings && w.ratings[name]) === r.id ? 'on' : ''} onClick=${() => actions.rate(name, r.id)}>${r.label}</button>`)}
         </div>
-      </div>`}
+      </div>`)}
 
       ${w.phase === 'work' && exo && exo.kind === 'kg' && html`<${LoadControl} dark value=${exo.kg}
         step=${(db.progress[exo.name] && db.progress[exo.name].step) || defaultStep(exo.name)} steps=${stepChoices(exo.name)}
@@ -469,7 +497,7 @@ export function Workout({ db, actions }) {
 
     <div class="wk-stats">
       <div><div class="tiny dim">Calories estimées</div><div class="wk-stat">≈ ${fmt(kcal)} kcal</div></div>
-      <div><div class="tiny dim">Fréquence cardiaque</div><div class="wk-stat">— <span class="tiny dim">montre bientôt</span></div></div>
+      <div><div class="tiny dim">Fréquence cardiaque</div><div class="wk-stat">— <span class="tiny dim">sur ta montre</span></div></div>
     </div>
 
     <div class="wk-steps" aria-label=${`Étape ${curBlock + 1} sur ${names.length} : ${names[curBlock]}`}>

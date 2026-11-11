@@ -544,3 +544,15 @@ img { display: block; max-width: 100%; }
 .recipe-photo img { width: 100%; aspect-ratio: 16 / 10; object-fit: cover; border-radius: 18px; display: block; background: var(--soft); }
 .recipe-photo figcaption { font-size: 11.5px; color: var(--muted); margin-top: 5px; text-align: right; }
 .recipe-photo a { color: inherit; }
+
+/* ── v1.5 : durée et supersets ── */
+.ss-line { font-size: 12px; font-weight: 600; color: var(--accent-ink); margin-top: 2px; }
+.dur-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.dur { background: var(--card); border-radius: 16px; padding: 14px 6px; display: flex; flex-direction: column; align-items: center; gap: 2px; box-shadow: inset 0 0 0 1.5px rgba(31, 27, 23, .1); }
+.dur b { font-size: 20px; font-weight: 800; }
+.dur span { font-size: 12px; color: var(--muted); min-height: 15px; }
+.dur.on { background: var(--ink); color: var(--card); box-shadow: none; }
+.dur.on span { color: rgba(255, 255, 255, .7); }
+.chip.on { background: var(--ink); color: var(--card); }
+.shop-row.skip .shop-name, .shop-row.skip .shop-qty { color: #8A8178; }
+.steps b { font-weight: 700; }

@@ -22,6 +22,8 @@ Webapp (PWA) qui mêle nourriture et sport : tu notes ce que tu manges, et ton p
 - **Repas rapides** : repas habituels, « Comme hier », assiettes types de cantine ou de restaurant.
 - **Photos** : chaque exercice et chaque appareil a sa photo de démonstration (dans `img/ex/`) ; les recettes affichent une photo d'illustration chargée depuis Wikipédia quand il y a du réseau.
 - **Choix de la séance** : tu vois les prochaines séances et tu peux en faire une autre que celle prévue (par exemple « Haut du corps complet ») sans décaler le programme.
+- **Durée au choix** : de 20 min à 1 h 30. Plus de temps ajoute des exercices et des séries ; moins de temps enchaîne des exercices en superset, puis raccourcit.
+- **Apple Watch** : un Raccourci iOS copie les entraînements de la montre, et l'app les importe (Aujourd'hui › Importer depuis l'Apple Watch). Le format lu est décrit en tête de `js/lib/watch.js`.
 - **Mon matériel** : coche ce qui existe dans ta salle (et à la maison) ; le programme ne propose que des exercices faisables. Un remplacement est retenu pour les séances suivantes.
 - **Séance** : version express de 20 min, répétitions réellement faites, repos réglable et note par exercice, records.
 - **Suivi du poids** : une pesée par semaine recalcule ta cible de calories.

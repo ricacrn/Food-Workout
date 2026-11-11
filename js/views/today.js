@@ -1,4 +1,5 @@
 import { html, useState } from '../../vendor/preact-htm.js';
+import { WatchSheet } from './watch.js';
 import { getDay } from '../lib/store.js';
 import { GOALS, MEALS, targetFor, macroTargets, dayTotals, kcalOf } from '../lib/nutrition.js';
 import { balance, currentSession, buildPlan, nextTrainingDay, summary, planKcal } from '../lib/program.js';
@@ -101,6 +102,7 @@ export function Today({ db, ui, actions }) {
   const [open, setOpen] = useState({});
   const [editing, setEditing] = useState(null);
   const [weighing, setWeighing] = useState(false);
+  const [watch, setWatch] = useState(false);
   const L = isToday ? linkCard(db) : null;
   const linkStyle = L && { up: 'link-up', down: 'link-down', even: 'link-even' }[L.kind];
 
@@ -198,6 +200,7 @@ export function Today({ db, ui, actions }) {
         <button class="icon-btn" aria-label=${`Supprimer ${a.label}`} onClick=${() => actions.removeActivity(k, a.id)}><${Icon} name="close" size=${16} /></button>
       </div>`)}
       <button class="meal-empty" onClick=${() => actions.openActivity()}><span>Ajouter une activité</span><span class="add-plus"><${Icon} name="plus" size=${18} /></span></button>
+      <button class="text-btn" onClick=${() => setWatch(true)}><${Icon} name="clock" size=${16} /> Importer depuis l’Apple Watch</button>
     </section>
 
     ${isToday && html`<section class="stack">
@@ -205,6 +208,7 @@ export function Today({ db, ui, actions }) {
       <${WeightCard} db=${db} tk=${tk} onOpen=${() => setWeighing(true)} />
     </section>`}
 
+    ${watch && html`<${WatchSheet} db=${db} actions=${actions} onClose=${() => setWatch(false)} />`}
     ${weighing && html`<${WeightSheet} db=${db} actions=${actions} onClose=${() => setWeighing(false)} />`}
     ${editing && html`<${EditEntry} entry=${editing} onClose=${() => setEditing(null)}
       onDelete=${() => { actions.removeEntry(k, editing.id); setEditing(null); }}

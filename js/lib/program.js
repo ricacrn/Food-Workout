@@ -239,6 +239,15 @@ const SLOT = {
   'Pompes': ['Développé couché haltères', 'Pompes sur les genoux', 'Presse pectoraux', 'Butterfly'],
   'Goblet squat': ['Presse à cuisses', 'Squat', 'Squat guidé', 'Leg extension', 'Fentes marchées', 'Squat au poids du corps'],
   'Gainage latéral': ['Pallof press', 'Rotation russe', 'Dead bug', 'Crunch'],
+  // Cases en plus, quand tu choisis une séance plus longue
+  'Leg extension': ['Adducteurs', 'Abducteurs', 'Fentes au poids du corps'],
+  'Leg curl': ['Hip thrust', 'Extensions lombaires', 'Pont fessier'],
+  'Mollets à la machine': ['Mollets haltères', 'Adducteurs', 'Abducteurs', 'Squat au poids du corps'],
+  'Butterfly': ['Écarté à la poulie', 'Écarté haltères', 'Pompes'],
+  'Développé incliné haltères': ['Développé incliné barre', 'Presse pectoraux', 'Pompes sur les genoux'],
+  'Tirage horizontal': ['Rowing machine', 'Rowing haltère un bras', 'Rowing T-bar', 'Rowing élastique', 'Superman'],
+  'Curl marteau': ['Curl barre EZ', 'Curl poulie', 'Curl au pupitre', 'Curl élastique'],
+  'Extensions lombaires': ['Superman'],
   'Élévations latérales': ['Élévations latérales à la poulie', 'Élévations latérales élastique', 'Oiseau haltères', 'Y-T-W au sol', 'Pompes piquées'],
 };
 const slot = (n, s) => ({ n, s, alts: SLOT[n] });
@@ -251,6 +260,16 @@ export const SESSIONS = [
   // Hors rotation : à choisir quand tu en as envie
   { id: 'upper', name: 'Haut du corps complet', extra: true, ex: [slot('Développé couché', 3), slot('Tractions', 3), slot('Développé militaire haltères', 3), slot('Rowing barre', 3), slot('Élévations latérales', 3), slot('Curl biceps', 3)] },
 ];
+
+// Exercices ajoutés, dans cet ordre, quand la durée choisie est plus longue que la séance de base.
+const EXTRA = {
+  lower: ['Leg extension', 'Leg curl', 'Mollets à la machine', 'Gainage latéral'],
+  push: ['Développé incliné haltères', 'Butterfly', 'Élévations latérales', 'Gainage'],
+  pull: ['Tirage horizontal', 'Extensions lombaires', 'Curl marteau', 'Gainage'],
+  full: ['Rowing barre', 'Développé militaire haltères', 'Fentes bulgares', 'Curl biceps'],
+  upper: ['Extensions triceps', 'Face pull', 'Butterfly', 'Gainage'],
+};
+export const DURATIONS = [20, 30, 40, 45, 50, 60, 75, 90];
 
 // Ordre du programme. Les séances « extra » ne tournent pas : elles se choisissent à la main.
 export const ROTATION = ['lower', 'push', 'pull', 'full'];
@@ -409,43 +428,108 @@ export function exerciseEntry(db, slot, name, goal, d) {
   };
 }
 
-/** Construit la séance selon l'objectif et le bilan (steps de -4 à +4). opts.express : version courte, ~20 min. */
+const SET_SEC = 45; // durée moyenne d'une série
+
+// Durée estimée, en minutes. « paired » = nombre de supersets, formés à partir de la fin de la séance :
+// deux exercices enchaînés sans repos, un seul repos par tour.
+function estimate(items, rest, fin, paired) {
+  const solo = items.length - paired * 2;
+  let sec = 0;
+  items.forEach((it, i) => {
+    sec += it.s * SET_SEC;
+    if (i < solo) sec += it.s * rest;
+    else if ((i - solo) % 2 === 1) sec += Math.max(it.s, items[i - 1].s) * rest;
+  });
+  return WARM + sec / 60 + fin;
+}
+
+/**
+ * Ajuste la séance de base à la durée voulue (en minutes), à 2 min près quand c'est possible.
+ * Trop longue : supersets d'abord, puis repos plus courts, moins de cardio, moins de séries, moins d'exercices.
+ * Trop courte : exercices en plus, puis séries en plus, puis un peu plus de cardio.
+ */
+function fitTo(T, session, G) {
+  let items = session.ex.map(sl => ({ slot: sl, s: sl.s }));
+  let rest = 90;
+  let fin = G.fin;
+  let paired = 0;
+  const est = () => estimate(items, rest, fin, paired);
+  const maxPairs = () => Math.floor((items.length - 1) / 2); // le premier exercice reste toujours seul
+  const TOL = 2;
+  if (T && est() > T + TOL) {
+    while (est() > T + TOL && paired < maxPairs()) paired += 1;
+    if (est() > T + TOL) rest = 60;
+    while (est() > T + TOL && fin > 0) fin = Math.max(0, fin - 3);
+    for (let pass = 0; pass < 3; pass++) for (let i = items.length - 1; i >= 0 && est() > T + TOL; i--) if (items[i].s > 2) items[i].s -= 1;
+    while (est() > T + TOL && items.length > 2) { items.pop(); paired = Math.min(paired, maxPairs()); }
+  } else if (T && est() < T - TOL) {
+    for (const n of EXTRA[session.id] || []) {
+      if (est() >= T - TOL) break;
+      items.push({ slot: slot(n, 3), s: 3, extra: true });
+      if (est() > T + TOL) { items.pop(); break; }
+    }
+    for (let pass = 0; pass < 2; pass++) for (let i = 0; i < items.length && est() < T - TOL; i++) {
+      if (items[i].s >= 5) continue;
+      items[i].s += 1;
+      if (est() > T + TOL) items[i].s -= 1;
+    }
+    while (G.fin > 0 && est() < T - TOL && fin < G.fin + 9) fin += 3;
+  }
+  return { items, rest, fin, paired };
+}
+
+/** Durée réelle du plan, avec tes repos personnalisés. */
+function planMinutes(ex, rest, fin) {
+  let sec = 0;
+  ex.forEach((e, i) => {
+    sec += e.sets * SET_SEC;
+    const mate = ex[i + 1];
+    if (e.ss != null && mate && mate.ss === e.ss) return; // premier d'un superset : pas de repos après lui
+    const first = e.ss != null && i > 0 && ex[i - 1].ss === e.ss ? ex[i - 1] : null;
+    sec += (first ? Math.max(e.sets, first.sets) : e.sets) * (e.rest || rest);
+  });
+  return Math.round(WARM + sec / 60 + fin);
+}
+
+/**
+ * Construit la séance : d'abord ajustée à la durée choisie (opts.minutes, sinon la séance de base),
+ * puis renforcée ou allégée selon le bilan des repas (steps de -4 à +4).
+ */
 export function buildPlan(session, goal, steps, db, overrides = {}, opts = {}) {
   const G = GOALS[goal] || GOALS.maintien;
+  const T = opts.minutes === undefined ? (db.profile && db.profile.sessionMin) || 0 : opts.minutes || 0;
+  const F = fitTo(T, session, G);
   const used = new Set();
-  let ex = session.ex.map((slot, i) => {
+  const solo = F.items.length - F.paired * 2;
+  const ex = F.items.map((it, i) => {
     let d = 0;
     if (steps > 0 && (goal === 'prise' ? i < steps : steps >= 2 && i < 2)) d = 1;
-    if (steps < 0 && ((steps <= -2 && i > 0) || (steps <= -4 && i === 0))) d = -1;
-    const name = slotName(db, slot, overrides, used);
+    if (steps < 0 && it.s > 1 && ((steps <= -2 && i > 0) || (steps <= -4 && i === 0))) d = -1;
+    const sl = { ...it.slot, s: it.s };
+    const name = slotName(db, sl, overrides, used);
     used.add(name);
-    return exerciseEntry(db, slot, name, goal, d);
+    const e = exerciseEntry(db, sl, name, goal, d);
+    if (i >= solo) e.ss = Math.floor((i - solo) / 2); // numéro du superset
+    if (it.extra) e.extra = true;
+    return e;
   });
-  const finBase = G.fin;
+  const finBase = F.fin;
   let fin = finBase;
   if (steps > 0 && goal !== 'prise') fin += steps * 3;
   if (steps < 0) fin = 0;
-  let rest = 90;
-  if (steps >= 3 && goal !== 'prise') rest = 60;
-  if (steps < 0) rest = 120;
-  if (opts.express) {
-    // l'essentiel : les 3 premiers exercices, moins de séries, repos courts, pas de cardio final
-    ex = ex.slice(0, 3).map((e, i) => ({ ...e, sets: i === 0 ? 3 : 2, d: 0 }));
-    fin = 0;
-    rest = 60;
-  }
-  const restOf = e => (opts.express ? rest : e.rest || rest);
-  const work = ex.reduce((a, e) => a + e.sets * (45 + restOf(e)), 0);
-  const minutes = Math.round(WARM + work / 60 + fin);
+  const restBase = F.rest;
+  let rest = restBase;
+  if (steps >= 3 && goal !== 'prise') rest = Math.min(rest, 60);
+  if (steps < 0) rest += 30;
   return {
-    session: { id: session.id, name: session.name + (opts.express ? ' · express' : '') }, goal, steps, pct: steps * STEP_PCT, ex, fin, finBase, rest, minutes,
-    express: !!opts.express, cardio: cardioLabel(db),
+    session: { id: session.id, name: session.name }, goal, steps, pct: steps * STEP_PCT, ex, fin, finBase, rest, restBase,
+    minutes: planMinutes(ex, rest, fin), target: T, supersets: F.paired, cardio: cardioLabel(db),
     added: ex.filter(e => e.d > 0).length, removed: ex.filter(e => e.d < 0).length,
   };
 }
 
 /** Repos après une série de cet exercice : ton réglage, sinon celui de la séance. */
-export const restFor = (plan, e) => (plan.express ? plan.rest : (e && e.rest) || plan.rest);
+export const restFor = (plan, e) => (e && e.rest) || plan.rest;
 
 export function planKcal(plan, weightKg) {
   const strengthMin = plan.minutes - plan.fin - WARM;
@@ -466,7 +550,8 @@ export function summary(plan) {
   if (plan.removed) parts.push(`${plan.removed} série${plan.removed > 1 ? 's' : ''} en moins`);
   if (plan.fin > plan.finBase) parts.push(plan.finBase ? `cardio final de ${plan.fin} min au lieu de ${plan.finBase}` : `cardio final de ${plan.fin} min`);
   if (plan.fin < plan.finBase) parts.push('sans cardio final');
-  if (plan.rest !== 90) parts.push(plan.rest < 90 ? 'repos plus courts' : 'repos plus longs');
+  const rb = plan.restBase || 90;
+  if (plan.rest !== rb) parts.push(plan.rest < rb ? 'repos plus courts' : 'repos plus longs');
   if (parts.length < 2) return parts[0] || '';
   return parts.slice(0, -1).join(', ') + ' et ' + parts[parts.length - 1];
 }
@@ -474,13 +559,24 @@ export function summary(plan) {
 /** Déroulé pas à pas pour le lecteur de séance. block = index du bloc (échauffement, exercices, cardio). */
 export function sequence(plan) {
   const out = [{ kind: 'timed', block: 0, name: 'Échauffement', min: WARM, sub: `${WARM} min · mobilité et cardio léger` }];
-  plan.ex.forEach((e, idx) => {
-    for (let i = 1; i <= e.sets; i++) out.push({ kind: 'set', block: idx + 1, ex: idx, name: e.name, i, n: e.sets });
-  });
+  const set = (idx, i, extra) => out.push({ kind: 'set', block: idx + 1, ex: idx, name: plan.ex[idx].name, i, n: plan.ex[idx].sets, ...extra });
+  for (let idx = 0; idx < plan.ex.length; idx++) {
+    const e = plan.ex[idx];
+    const mate = plan.ex[idx + 1];
+    if (e.ss != null && mate && mate.ss === e.ss) {
+      // superset : A1, B1, repos, A2, B2, repos…
+      for (let r = 1; r <= Math.max(e.sets, mate.sets); r++) {
+        if (r <= e.sets) set(idx, r, { ss: 'a', mate: mate.name, chain: r <= mate.sets });
+        if (r <= mate.sets) set(idx + 1, r, { ss: 'b', mate: e.name });
+      }
+      idx += 1;
+    } else {
+      for (let i = 1; i <= e.sets; i++) set(idx, i);
+    }
+  }
   if (plan.fin) out.push({ kind: 'timed', block: plan.ex.length + 1, name: 'Cardio final', min: plan.fin, sub: `${plan.fin} min · ${plan.cardio || 'vélo ou rameur'}`, finisher: true });
   return out;
 }
-
 export function blocks(plan) {
   return ['Échauffement', ...plan.ex.map(e => e.name), ...(plan.fin ? ['Cardio final'] : [])];
 }

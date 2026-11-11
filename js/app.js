@@ -3,6 +3,7 @@ import * as store from './lib/store.js';
 import { mealForNow } from './lib/nutrition.js';
 import { sequence, metKcal, exerciseEntry, recompute, roundKg, isStale, restFor, rotationSession } from './lib/program.js';
 import { targetFor } from './lib/nutrition.js';
+import { isStrength } from './lib/watch.js';
 import { todayKey, hhmm } from './lib/dates.js';
 import { unlockAudio, keepAwake } from './lib/sound.js';
 import { Icon, ConfirmSheet } from './ui.js';
@@ -50,7 +51,9 @@ function advance(w, now, reps) {
     return true;
   }
   w.step += 1;
-  if (cur.kind === 'set') {
+  if (cur.kind === 'set' && cur.chain) {
+    enterStep(w, now); // superset : on enchaîne le second exercice sans repos
+  } else if (cur.kind === 'set') {
     w.phase = 'rest';
     w.phaseStart = now;
     w.phaseEnd = now + restFor(w.plan, w.plan.ex[cur.ex]) * 1000;
@@ -72,6 +75,7 @@ function swapInWorkout(d, slot, name) {
   if (w.done && w.done[old.name]) w.swappedOut = [...(w.swappedOut || []), old];
   const slotObj = { n: slot, s: old.base, alts: old.alts.filter(a => a !== slot) };
   w.plan.ex[i] = exerciseEntry(d, slotObj, name, w.plan.goal, old.d);
+  if (old.ss != null) w.plan.ex[i].ss = old.ss; // reste dans son superset
 }
 
 // Supprime une activité ; si c'est une séance, annule aussi sa progression et remet le programme en place.
@@ -323,6 +327,38 @@ function App() {
       });
       const after = targetFor({ ...db.profile, weight: kg });
       notify(after !== before ? `Poids noté · ta cible passe à ${String(after).replace(/\B(?=(\d{3})+(?!\d))/g, ' ')} kcal par jour` : 'Poids noté');
+    },
+    // Entraînements mesurés par l'Apple Watch. Une séance de muscu déjà notée dans l'app le même jour
+    // garde sa ligne et prend les calories de la montre ; les autres deviennent de nouvelles activités.
+    importWatch: (list, weight) => {
+      const snap = db;
+      let added = 0, merged = 0;
+      update(d => {
+        list.forEach(w => {
+          const day = (d.days[w.date] = d.days[w.date] || store.emptyDay());
+          if (day.activities.some(a => a.wid === w.wid)) return;
+          const mine = isStrength(w.type) && day.activities.find(a => a.type === 'session' && !a.wid);
+          if (mine) {
+            mine.kcal = w.kcal; mine.watch = true; mine.wid = w.wid;
+            const s = d.sessions.find(x => x.id === mine.sid);
+            if (s) s.kcal = w.kcal;
+            merged += 1;
+          } else {
+            day.activities.push({ id: uid(), type: 'watch', label: w.label, min: w.min, kcal: w.kcal, time: w.time || '', watch: true, wid: w.wid });
+            added += 1;
+          }
+        });
+        if (weight) {
+          const k = todayKey();
+          d.weights = [...d.weights.filter(x => x.date !== k), { date: k, kg: weight }].sort((a, b) => (a.date < b.date ? -1 : 1)).slice(-400);
+          d.profile.weight = weight;
+        }
+      });
+      const parts = [];
+      if (added) parts.push(`${added} activité${added > 1 ? 's' : ''} ajoutée${added > 1 ? 's' : ''}`);
+      if (merged) parts.push(`${merged} séance${merged > 1 ? 's' : ''} mise${merged > 1 ? 's' : ''} à jour`);
+      if (weight) parts.push('poids noté');
+      notify(parts.length ? `Montre : ${parts.join(', ')}` : 'Rien de nouveau à importer', parts.length ? snap : null);
     },
     setStep: (name, step) => update(d => { d.progress[name] = { ...(d.progress[name] || {}), step }; }),
     swap: (slot, name, mode) => {
